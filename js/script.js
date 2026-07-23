@@ -1261,6 +1261,3 @@ animate();
 
 document.addEventListener('click', initAudio, { once: true });
 document.addEventListener('touchstart', initAudio, { once: true });
-
-console.log('🌌 Emotion Galaxy loaded! ✦');
-console.log(`📊 ${state.messages.length} stars in the galaxy.`);
