@@ -133,6 +133,7 @@ const mystarsCloseBtn = $('#mystars-close-btn');
 const mystarsList = $('#mystars-list');
 const mystarsCount = $('#mystars-count');
 const loadingScreen = $('#loading-screen');
+const skipBtn = $('#skip-btn');
 
 // Delete confirm modal refs
 const deleteConfirmModal = $('#delete-confirm-modal');
@@ -336,8 +337,12 @@ async function initializeApp() {
   }
 
   state.loading = false;
-  
-  if (state.messages.length === 0) {
+
+  // Check if user has dismissed the landing before
+  const landingDismissed = localStorage.getItem('soulverse_landing_dismissed') === 'true';
+
+  // Show landing for new users (no stars of their own) who haven't dismissed it
+  if (state.myStarIds.size === 0 && !landingDismissed) {
     landingScreen.classList.remove('hidden');
     hud.style.display = 'none';
   } else {
@@ -1236,6 +1241,20 @@ form.addEventListener('submit', async (e) => {
 
     input.value = '';
     nameInput.value = '';
+  }
+});
+
+// ============================================================
+// SKIP LANDING
+// ============================================================
+skipBtn.addEventListener('click', () => {
+  localStorage.setItem('soulverse_landing_dismissed', 'true');
+  landingScreen.classList.add('hidden');
+  hud.style.display = 'flex';
+  if (state.messages.length > 0) {
+    showToast('✦ Welcome to the galaxy! Click on any star to explore.');
+  } else {
+    showToast('✦ The galaxy is empty... Be the first to share your emotion!');
   }
 });
 

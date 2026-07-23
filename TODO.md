@@ -1,9 +1,10 @@
-# TODO: Fix Delete Button & Modal
+# Landing Screen + Skip Feature - Implementation Progress
 
 ## Steps
-- [x] Plan approved by user
-- [x] Step 1: Replace "✕" text delete button with SVG trash icon in `renderMyStars()`
-- [x] Step 2: Add `pendingDeleteStarId` state variable
-- [x] Step 3: Update `deleteStar()` to use custom delete confirm modal instead of native `confirm()`
-- [x] Step 4: Wire up delete confirm modal event listeners (cancel/delete/backdrop/escape)
+- [x] Explore repo and read files
+- [x] Plan created and approved
+- [x] Step 1: Add "Skip" button in index.html
+- [x] Step 2: Add skip button CSS in style.css
+- [x] Step 3: Update script.js logic for new user detection
+- [x] Step 4: All changes complete - ready for testing
 
