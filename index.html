@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SouVerse Emotion Galaxy</title>
+  <link rel="stylesheet" href="css/style.css">
+ <link rel="web icon" href="./assets/SoulVerse.png">
+</head>
+<body>
+
+  <!-- ====== LOADING SCREEN ====== -->
+  <div id="loading-screen">
+    <div class="loading-star">✦</div>
+    <div class="loading-text">Igniting the galaxy...</div>
+  </div>
+
+  <!-- ====== LANDING SCREEN ====== -->
+  <div id="landing-screen">
+    <h1 class="landing-title">Emotion Galaxy</h1>
+    <p class="landing-subtitle">Where every feeling becomes a star</p>
+
+    <form class="landing-form" id="emotion-form">
+      <div class="input-wrapper">
+        <input class="landing-input" id="emotion-input" type="text"
+               placeholder="How are you feeling today?" autocomplete="off" required>
+      </div>
+
+      <div class="landing-row">
+        <select class="emotion-select" id="emotion-category" title="Select your current emotion category">
+          <option value="General">✨ General</option>
+          <option value="Happy">😊 Happy</option>
+          <option value="Sad">😢 Sad</option>
+          <option value="Angry">😠 Angry</option>
+          <option value="Anxious">😰 Anxious</option>
+          <option value="Excited">🤩 Excited</option>
+          <option value="Grateful">🙏 Grateful</option>
+          <option value="Hopeful">🌟 Hopeful</option>
+          <option value="Lonely">💔 Lonely</option>
+          <option value="Love">💖 Love</option>
+          <option value="Peaceful">☮️ Peaceful</option>
+        </select>
+
+        <input class="name-input" id="name-input" type="text"
+               placeholder="Anonymous (optional)">
+      </div>
+
+      <button class="submit-btn" type="submit">
+        ✦ Release into the Universe
+      </button>
+    </form>
+
+    <p class="landing-footer">Your emotions become stars in an ever-growing galaxy</p>
+  </div>
+
+  <!-- ====== GALAXY VIEW (Three.js canvas injected here) ====== -->
+  <div id="galaxy-view"></div>
+
+  <!-- ====== HUD OVERLAY ====== -->
+  <div id="hud" style="display:none;">
+    <button class="hud-btn" id="btn-back">← Back</button>
+    <button class="hud-btn" id="btn-sound">🔊 Sound</button>
+    <button class="hud-btn" id="btn-explore">🎲 Explore</button>
+
+    <input class="hud-search" id="search-input" type="text" placeholder="Search stars...">
+
+    <div class="filter-pills" id="filter-pills"></div>
+
+    <span class="hud-counter" id="star-counter">✦ 0 stars</span>
+  </div>
+
+  <!-- ====== STAR MODAL ====== -->
+  <div id="star-modal">
+    <div class="backdrop" id="modal-backdrop"></div>
+    <div class="modal-card">
+      <div class="modal-emotion-icon" id="modal-icon">✨</div>
+      <div class="modal-emotion-label" id="modal-label">General</div>
+      <div class="modal-message" id="modal-message">—</div>
+      <div class="modal-name" id="modal-name">Anonymous</div>
+      <div class="modal-time" id="modal-time">just now</div>
+      <div class="modal-actions">
+        <button class="modal-like-btn" id="modal-like-btn">
+          💡 <span id="modal-like-count">0</span> Send Light
+        </button>
+        <button class="modal-close-btn" id="modal-close-btn">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== TOAST ====== -->
+  <div id="toast"></div>
+
+  <!-- ==============================
+       THREE.JS IMPORT MAP
+       ============================== -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <!-- ==============================
+       APPLICATION CODE
+       ============================== -->
+  <script type="module" src="js/script.js"></script>
+</body>
+</html>
+
