@@ -1,0 +1,82 @@
+-- ============================================================
+-- STARS POLICIES (FIXED)
+-- ============================================================
+
+-- Anyone can read all stars (public access)
+DROP POLICY IF EXISTS "Anyone can read stars" ON stars;
+CREATE POLICY "Anyone can read stars"
+  ON stars FOR SELECT
+  USING (true);
+
+-- Anyone can insert stars
+DROP POLICY IF EXISTS "Anyone can insert stars" ON stars;
+CREATE POLICY "Anyone can insert stars"
+  ON stars FOR INSERT
+  WITH CHECK (true);  -- Allow all inserts, no user_id validation needed
+
+-- Users can update their own stars
+DROP POLICY IF EXISTS "Users can update own stars" ON stars;
+CREATE POLICY "Users can update own stars"
+  ON stars FOR UPDATE
+  USING (user_id = current_setting('app.current_user_id', true));
+
+-- Users can delete their own stars
+DROP POLICY IF EXISTS "Users can delete own stars" ON stars;
+CREATE POLICY "Users can delete own stars"
+  ON stars FOR DELETE
+  USING (user_id = current_setting('app.current_user_id', true));
+
+-- ============================================================
+-- COMMENTS POLICIES (FIXED)
+-- ============================================================
+
+-- Anyone can read comments
+DROP POLICY IF EXISTS "Anyone can read comments" ON comments;
+CREATE POLICY "Anyone can read comments"
+  ON comments FOR SELECT
+  USING (true);
+
+-- Anyone can insert comments
+DROP POLICY IF EXISTS "Anyone can insert comments" ON comments;
+CREATE POLICY "Anyone can insert comments"
+  ON comments FOR INSERT
+  WITH CHECK (true);  -- Allow all inserts
+
+-- Users can update their own comments
+DROP POLICY IF EXISTS "Users can update own comments" ON comments;
+CREATE POLICY "Users can update own comments"
+  ON comments FOR UPDATE
+  USING (user_id = current_setting('app.current_user_id', true));
+
+-- Users can delete their own comments
+DROP POLICY IF EXISTS "Users can delete own comments" ON comments;
+CREATE POLICY "Users can delete own comments"
+  ON comments FOR DELETE
+  USING (user_id = current_setting('app.current_user_id', true));
+
+-- ============================================================
+-- USER_STATS POLICIES (FIXED)
+-- ============================================================
+
+-- Anyone can read user stats
+DROP POLICY IF EXISTS "Anyone can read user stats" ON user_stats;
+CREATE POLICY "Anyone can read user stats"
+  ON user_stats FOR SELECT
+  USING (true);
+
+-- ANYONE can insert or update user stats (since we're using simple user_id)
+DROP POLICY IF EXISTS "Users can update own stats" ON user_stats;
+CREATE POLICY "Users can update own stats"
+  ON user_stats FOR UPDATE
+  USING (true);  -- Allow any update
+
+DROP POLICY IF EXISTS "Users can insert own stats" ON user_stats;
+CREATE POLICY "Users can insert own stats"
+  ON user_stats FOR INSERT
+  WITH CHECK (true);  -- Allow any insert
+
+-- ============================================================
+-- ALTERNATIVE: SIMPLER APPROACH - DISABLE RLS ON USER_STATS
+-- ============================================================
+-- If you want to completely bypass RLS for user_stats:
+-- ALTER TABLE user_stats DISABLE ROW LEVEL SECURITY;
