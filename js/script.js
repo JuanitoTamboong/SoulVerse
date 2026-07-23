@@ -774,7 +774,32 @@ async function openModal(msg) {
 function closeModal() {
   modal.classList.remove('visible');
   currentModalMsgId = null;
-  controls.autoRotate = true;
+  
+  // Only reset if not in explore mode and not transitioning
+  if (!state.isExploring && !state.transitioning) {
+    controls.autoRotate = true;
+    
+    // Smoothly animate back to galaxy view
+    const startPos = camera.position.clone();
+    const startTarget = controls.target.clone();
+    const endPos = new THREE.Vector3(0, 60, 140);
+    const endTarget = new THREE.Vector3(0, 0, 0);
+    let t = 0;
+    const duration = 40;
+    
+    function animateBack() {
+      t++;
+      const p = Math.min(t / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      camera.position.lerpVectors(startPos, endPos, ease);
+      controls.target.lerpVectors(startTarget, endTarget, ease);
+      controls.update();
+      if (p < 1) {
+        requestAnimationFrame(animateBack);
+      }
+    }
+    animateBack();
+  }
 }
 
 modalBackdrop.addEventListener('click', closeModal);
