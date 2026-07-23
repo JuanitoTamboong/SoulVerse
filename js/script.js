@@ -783,7 +783,9 @@ renderer.domElement.addEventListener('click', (e) => {
 // SOUND ENGINE
 // ============================================================
 let audioCtx = null;
-let ambientNodes = [];
+let ambientBuffer = null;
+let ambientSource = null;
+let ambientGain = null;
 let soundInitialized = false;
 
 function initAudio() {
@@ -791,68 +793,57 @@ function initAudio() {
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     soundInitialized = true;
-    startAmbientDrone();
+    loadAndPlayMusic();
   } catch {}
 }
 
-function startAmbientDrone() {
-  if (!audioCtx || !state.soundOn) return;
-  stopAmbientDrone();
-
-  const osc1 = audioCtx.createOscillator();
-  osc1.type = 'sine';
-  osc1.frequency.setValueAtTime(55, audioCtx.currentTime);
-  const gain1 = audioCtx.createGain();
-  gain1.gain.setValueAtTime(0.08, audioCtx.currentTime);
-  gain1.gain.linearRampToValueAtTime(0.04, audioCtx.currentTime + 2);
-
-  const osc2 = audioCtx.createOscillator();
-  osc2.type = 'sine';
-  osc2.frequency.setValueAtTime(110, audioCtx.currentTime);
-  const gain2 = audioCtx.createGain();
-  gain2.gain.setValueAtTime(0.06, audioCtx.currentTime);
-  gain2.gain.linearRampToValueAtTime(0.03, audioCtx.currentTime + 3);
-
-  const osc3 = audioCtx.createOscillator();
-  osc3.type = 'sine';
-  osc3.frequency.setValueAtTime(220, audioCtx.currentTime);
-  const gain3 = audioCtx.createGain();
-  gain3.gain.setValueAtTime(0.03, audioCtx.currentTime);
-  gain3.gain.linearRampToValueAtTime(0.015, audioCtx.currentTime + 4);
-
-  const reverb = audioCtx.createConvolver();
-  const reverbLen = 4;
-  const reverbSampleRate = audioCtx.sampleRate;
-  const reverbBuffer = audioCtx.createBuffer(2, reverbLen * reverbSampleRate, reverbSampleRate);
-  for (let ch = 0; ch < 2; ch++) {
-    const data = reverbBuffer.getChannelData(ch);
-    for (let i = 0; i < data.length; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (reverbSampleRate * 0.8));
+async function loadAndPlayMusic() {
+  if (!audioCtx) return;
+  try {
+    // Decode the MP3 if not already cached
+    if (!ambientBuffer) {
+      const response = await fetch('./sound/sv-sound.mp3');
+      const arrayBuffer = await response.arrayBuffer();
+      ambientBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     }
+    if (state.soundOn) {
+      startAmbientMusic();
+    }
+  } catch (err) {
+    console.warn('Failed to load background music:', err);
   }
-  reverb.buffer = reverbBuffer;
-
-  const masterGain = audioCtx.createGain();
-  masterGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-
-  osc1.connect(gain1).connect(reverb);
-  osc2.connect(gain2).connect(reverb);
-  osc3.connect(gain3).connect(reverb);
-  reverb.connect(masterGain);
-  masterGain.connect(audioCtx.destination);
-
-  osc1.start();
-  osc2.start();
-  osc3.start();
-
-  ambientNodes = [osc1, osc2, osc3, gain1, gain2, gain3, reverb, masterGain];
 }
 
-function stopAmbientDrone() {
-  ambientNodes.forEach(n => {
-    try { if (n.stop) n.stop(); else if (n.disconnect) n.disconnect(); } catch {}
-  });
-  ambientNodes = [];
+function startAmbientMusic() {
+  if (!audioCtx || !ambientBuffer || !state.soundOn) return;
+  stopAmbientMusic();
+
+  // Create gain node for volume control
+  ambientGain = audioCtx.createGain();
+  ambientGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  ambientGain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 1);
+  ambientGain.connect(audioCtx.destination);
+
+  // Create source node that loops the decoded buffer
+  ambientSource = audioCtx.createBufferSource();
+  ambientSource.buffer = ambientBuffer;
+  ambientSource.loop = true;
+  ambientSource.connect(ambientGain);
+  ambientSource.start(0);
+}
+
+function stopAmbientMusic() {
+  if (ambientSource) {
+    try {
+      ambientSource.stop();
+    } catch {}
+    ambientSource.disconnect();
+    ambientSource = null;
+  }
+  if (ambientGain) {
+    ambientGain.disconnect();
+    ambientGain = null;
+  }
 }
 
 function playChime() {
@@ -876,9 +867,9 @@ btnSound.addEventListener('click', () => {
   state.soundOn = !state.soundOn;
   btnSound.textContent = state.soundOn ? '🔊 Sound' : '🔇 Mute';
   if (state.soundOn && audioCtx) {
-    startAmbientDrone();
+    startAmbientMusic();
   } else {
-    stopAmbientDrone();
+    stopAmbientMusic();
   }
 });
 
