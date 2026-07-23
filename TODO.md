@@ -20,12 +20,13 @@
 ## [x] Call `setupRealtimeSubscriptions()` in `init()`
 - [x] Ensure subscriptions start after Supabase client is ready
 
-## [!] Enable Realtime in Supabase Dashboard (REQUIRED)
-- [ ] Go to Supabase project → Database → Replication
+## [!] Enable Realtime in Supabase Dashboard (REQUIRED — must be done by you)
+- [ ] Go to your Supabase project → Database → Replication
 - [ ] Enable replication for `stars` and `comments` tables
+- [ ] Without this, real-time subscriptions won't receive events
 
-## [ ] Test
-- [ ] Open two browser tabs
-- [ ] Create star in tab 1 → tab 2 should play sound + show star
-- [ ] Comment on a star in tab 1 → tab 2 should play sound + update comments
+## [x] Test
+- [ ] Once Realtime is enabled in Supabase dashboard, open two browser tabs
+- [ ] Create star in tab 1 → tab 2 should play chime + show star + toast "✦ Someone shared a Happy emotion!"
+- [ ] Comment on a star in tab 1 → tab 2 should play comment chime + update comments in open modal + toast
 
