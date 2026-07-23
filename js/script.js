@@ -57,6 +57,7 @@ const state = {
   cameraTarget: null,
   cameraTargetPos: null,
   transitioning: false,
+  myStarIds: new Set(), // IDs of stars created by this user/browser
 };
 
 // DOM refs
@@ -111,6 +112,19 @@ function loadMessages() {
 function saveMessages() {
   try {
     localStorage.setItem('emotionGalaxy_messages', JSON.stringify(state.messages));
+  } catch {}
+}
+
+function loadMyStarIds() {
+  try {
+    const data = localStorage.getItem('emotionGalaxy_myStars');
+    return data ? new Set(JSON.parse(data)) : new Set();
+  } catch { return new Set(); }
+}
+
+function saveMyStarIds() {
+  try {
+    localStorage.setItem('emotionGalaxy_myStars', JSON.stringify([...state.myStarIds]));
   } catch {}
 }
 
@@ -309,6 +323,73 @@ function createStarTexture(colorHex, size = 64) {
 
 // Texture cache
 const textureCache = new Map();
+const userTextureCache = new Map();
+
+function createUserStarTexture(colorHex, size = 96) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const color = new THREE.Color(colorHex);
+  const cx = size/2, cy = size/2;
+  const maxR = size/2;
+
+  // Massive outer glow
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+  grad.addColorStop(0, `rgba(255,255,255,1)`);
+  grad.addColorStop(0.1, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},1)`);
+  grad.addColorStop(0.3, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.8)`);
+  grad.addColorStop(0.6, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.3)`);
+  grad.addColorStop(1, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0)`);
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Brighter white-hot center core
+  const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.4);
+  coreGrad.addColorStop(0, '#ffffff');
+  coreGrad.addColorStop(0.3, '#ffffff');
+  coreGrad.addColorStop(0.5, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.95)`);
+  coreGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = coreGrad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Enhanced cross glow (thicker + longer)
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    const g = ctx.createLinearGradient(0, -maxR*0.9, 0, maxR*0.9);
+    g.addColorStop(0, `rgba(255,255,255,0.5)`);
+    g.addColorStop(0.15, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.5)`);
+    g.addColorStop(0.5, `rgba(255,255,255,0.15)`);
+    g.addColorStop(1, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(-2.5, -maxR*0.9, 5, maxR*1.8);
+    ctx.restore();
+  }
+
+  // Extra diagonal spikes for brilliance
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI + Math.PI / 4;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    const g = ctx.createLinearGradient(0, -maxR*0.5, 0, maxR*0.5);
+    g.addColorStop(0, `rgba(255,255,255,0.25)`);
+    g.addColorStop(0.5, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.1)`);
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g;
+    ctx.fillRect(-1, -maxR*0.5, 2, maxR);
+    ctx.restore();
+  }
+
+  return new THREE.CanvasTexture(canvas);
+}
 
 function getStarTexture(emotion) {
   const colorHex = COLORS[emotion] || COLORS.General;
@@ -316,6 +397,14 @@ function getStarTexture(emotion) {
     textureCache.set(colorHex, createStarTexture(colorHex));
   }
   return textureCache.get(colorHex);
+}
+
+function getUserStarTexture(emotion) {
+  const colorHex = COLORS[emotion] || COLORS.General;
+  if (!userTextureCache.has(colorHex)) {
+    userTextureCache.set(colorHex, createUserStarTexture(colorHex));
+  }
+  return userTextureCache.get(colorHex);
 }
 
 // ============================================================
@@ -359,19 +448,22 @@ function buildStars() {
   });
 
   filteredMsgs.forEach((msg) => {
-    const texture = getStarTexture(msg.emotion);
+    const isMyStar = state.myStarIds.has(msg.id);
+    const texture = isMyStar ? getUserStarTexture(msg.emotion) : getStarTexture(msg.emotion);
     const mat = new THREE.SpriteMaterial({
       map: texture,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       transparent: true,
-      opacity: 0.9,
+      opacity: isMyStar ? 1.0 : 0.9,
     });
     const sprite = new THREE.Sprite(mat);
-    const baseScale = 0.8 + Math.random() * 1.2;
+    const baseScale = isMyStar
+      ? 1.5 + Math.random() * 1.0   // bigger base for user's stars
+      : 0.8 + Math.random() * 1.2;
     sprite.scale.set(baseScale, baseScale, 1);
     sprite.position.set(msg._pos.x, msg._pos.y, msg._pos.z);
-    sprite.userData = { msgId: msg.id, baseScale, phase: Math.random() * Math.PI * 2 };
+    sprite.userData = { msgId: msg.id, baseScale, phase: Math.random() * Math.PI * 2, isMyStar };
     starGroup.add(sprite);
     state.starMeshes.push(sprite);
     state.starDataMap.set(sprite.uuid, msg);
@@ -394,7 +486,9 @@ function addMessage(text, name, emotion) {
     likedBy: [],
   };
   state.messages.push(msg);
+  state.myStarIds.add(msg.id);
   saveMessages();
+  saveMyStarIds();
   buildStars();
   showToast('✦ Your emotion has become a star!');
   return msg;
@@ -804,20 +898,41 @@ function animate() {
   // Star twinkling + floating
   state.starMeshes.forEach((sprite) => {
     const ud = sprite.userData;
-    const twinkle = 0.7 + 0.3 * Math.sin(state.animTime * 2 + ud.phase);
-    sprite.material.opacity = twinkle * 0.9;
-    const floatY = Math.sin(state.animTime * 0.8 + ud.phase) * 0.4;
     const msg = state.starDataMap.get(sprite.uuid);
-    if (msg && msg._pos) {
-      sprite.position.y = msg._pos.y + floatY;
-    }
-    // Hover glow
-    if (hoveredStar === sprite) {
-      sprite.scale.setScalar(ud.baseScale * 1.8);
-      sprite.material.opacity = 1;
+    const isMyStar = ud.isMyStar && msg;
+
+    if (isMyStar) {
+      // Enhanced animation for user's stars
+      const pulse = 0.85 + 0.15 * Math.sin(state.animTime * 4 + ud.phase);
+      sprite.material.opacity = 0.85 + 0.15 * Math.sin(state.animTime * 3 + ud.phase);
+      const floatY = Math.sin(state.animTime * 1.2 + ud.phase) * 1.2;
+      if (msg && msg._pos) {
+        sprite.position.y = msg._pos.y + floatY;
+      }
+      // Bigger, more dramatic pulsing
+      if (hoveredStar === sprite) {
+        sprite.scale.setScalar(ud.baseScale * 2.2);
+        sprite.material.opacity = 1;
+      } else {
+        const targetScale = ud.baseScale * (0.9 + 0.1 * Math.sin(state.animTime * 5 + ud.phase));
+        sprite.scale.setScalar(targetScale);
+      }
     } else {
-      const targetScale = ud.baseScale * (0.9 + 0.1 * Math.sin(state.animTime * 3 + ud.phase));
-      sprite.scale.setScalar(targetScale);
+      // Original animation for other stars
+      const twinkle = 0.7 + 0.3 * Math.sin(state.animTime * 2 + ud.phase);
+      sprite.material.opacity = twinkle * 0.9;
+      const floatY = Math.sin(state.animTime * 0.8 + ud.phase) * 0.4;
+      if (msg && msg._pos) {
+        sprite.position.y = msg._pos.y + floatY;
+      }
+      // Hover glow
+      if (hoveredStar === sprite) {
+        sprite.scale.setScalar(ud.baseScale * 1.8);
+        sprite.material.opacity = 1;
+      } else {
+        const targetScale = ud.baseScale * (0.9 + 0.1 * Math.sin(state.animTime * 3 + ud.phase));
+        sprite.scale.setScalar(targetScale);
+      }
     }
   });
 
@@ -850,6 +965,7 @@ function animate() {
 // LOAD EXISTING DATA
 // ============================================================
 state.messages = loadMessages();
+state.myStarIds = loadMyStarIds();
 
 // If there are existing messages, go straight to galaxy
 if (state.messages.length > 0) {
