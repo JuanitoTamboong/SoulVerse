@@ -1,0 +1,522 @@
+-- ============================================================
+-- SOULVERSE SUPABASE SCHEMA - SIMPLE USER TRACKING
+-- ============================================================
+
+-- Enable UUID extension if not already enabled
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ============================================================
+-- DROP ALL EXISTING FUNCTIONS FIRST
+-- ============================================================
+DROP FUNCTION IF EXISTS toggle_like(UUID, TEXT) CASCADE;
+DROP FUNCTION IF EXISTS get_user_stars(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS get_stars_with_counts() CASCADE;
+DROP FUNCTION IF EXISTS search_stars(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS get_stars_by_emotion(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS update_user_stats(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS delete_user_stars(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS get_popular_stars(INTEGER) CASCADE;
+DROP FUNCTION IF EXISTS get_recent_stars(INTEGER) CASCADE;
+DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
+DROP FUNCTION IF EXISTS trigger_update_user_stats() CASCADE;
+
+-- ============================================================
+-- DROP EXISTING VIEWS
+-- ============================================================
+DROP VIEW IF EXISTS star_stats CASCADE;
+DROP VIEW IF EXISTS top_stars CASCADE;
+DROP VIEW IF EXISTS recent_activity CASCADE;
+
+-- ============================================================
+-- DROP EXISTING TABLES
+-- ============================================================
+DROP TABLE IF EXISTS stars CASCADE;
+DROP TABLE IF EXISTS comments CASCADE;
+DROP TABLE IF EXISTS user_stats CASCADE;
+
+-- ============================================================
+-- STARS TABLE
+-- ============================================================
+CREATE TABLE stars (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  name VARCHAR(100) DEFAULT 'Anonymous',
+  emotion VARCHAR(50) NOT NULL DEFAULT 'General',
+  likes INTEGER DEFAULT 0,
+  liked_by TEXT[] DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX idx_stars_user_id ON stars(user_id);
+CREATE INDEX idx_stars_emotion ON stars(emotion);
+CREATE INDEX idx_stars_created_at ON stars(created_at DESC);
+CREATE INDEX idx_stars_likes ON stars(likes DESC);
+CREATE INDEX idx_stars_user_emotion ON stars(user_id, emotion);
+
+-- ============================================================
+-- COMMENTS TABLE
+-- ============================================================
+CREATE TABLE comments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  star_id UUID NOT NULL REFERENCES stars(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  name VARCHAR(100) DEFAULT 'Anonymous',
+  is_mine BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX idx_comments_star_id ON comments(star_id);
+CREATE INDEX idx_comments_user_id ON comments(user_id);
+CREATE INDEX idx_comments_created_at ON comments(created_at DESC);
+
+-- ============================================================
+-- USER_STATS TABLE
+-- ============================================================
+CREATE TABLE user_stats (
+  user_id TEXT PRIMARY KEY,
+  total_stars INTEGER DEFAULT 0,
+  total_likes_received INTEGER DEFAULT 0,
+  total_comments_made INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_user_stats_total_stars ON user_stats(total_stars DESC);
+
+-- ============================================================
+-- RLS (Row Level Security) Policies
+-- ============================================================
+
+-- Enable RLS on tables
+ALTER TABLE stars ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_stats ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- STARS POLICIES
+-- ============================================================
+
+-- Anyone can read all stars (public access)
+CREATE POLICY "Anyone can read stars"
+  ON stars FOR SELECT
+  USING (true);
+
+-- Anyone can insert stars
+CREATE POLICY "Anyone can insert stars"
+  ON stars FOR INSERT
+  WITH CHECK (true);
+
+-- Users can update their own stars
+CREATE POLICY "Users can update own stars"
+  ON stars FOR UPDATE
+  USING (user_id = current_setting('app.current_user_id', true));
+
+-- Users can delete their own stars
+CREATE POLICY "Users can delete own stars"
+  ON stars FOR DELETE
+  USING (user_id = current_setting('app.current_user_id', true));
+
+-- ============================================================
+-- COMMENTS POLICIES
+-- ============================================================
+
+-- Anyone can read comments
+CREATE POLICY "Anyone can read comments"
+  ON comments FOR SELECT
+  USING (true);
+
+-- Anyone can insert comments
+CREATE POLICY "Anyone can insert comments"
+  ON comments FOR INSERT
+  WITH CHECK (true);
+
+-- Users can update their own comments
+CREATE POLICY "Users can update own comments"
+  ON comments FOR UPDATE
+  USING (user_id = current_setting('app.current_user_id', true));
+
+-- Users can delete their own comments
+CREATE POLICY "Users can delete own comments"
+  ON comments FOR DELETE
+  USING (user_id = current_setting('app.current_user_id', true));
+
+-- ============================================================
+-- USER_STATS POLICIES
+-- ============================================================
+
+-- Anyone can read user stats
+CREATE POLICY "Anyone can read user stats"
+  ON user_stats FOR SELECT
+  USING (true);
+
+-- Users can update their own stats
+CREATE POLICY "Users can update own stats"
+  ON user_stats FOR UPDATE
+  USING (user_id = current_setting('app.current_user_id', true));
+
+-- Users can insert their own stats
+CREATE POLICY "Users can insert own stats"
+  ON user_stats FOR INSERT
+  WITH CHECK (user_id = current_setting('app.current_user_id', true));
+
+-- ============================================================
+-- FUNCTIONS
+-- ============================================================
+
+-- Function to toggle like on a star
+CREATE OR REPLACE FUNCTION toggle_like(star_id UUID, user_identifier TEXT)
+RETURNS INTEGER LANGUAGE plpgsql AS $$
+DECLARE
+  liked BOOLEAN;
+  current_likes INTEGER;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM stars 
+    WHERE id = star_id AND user_identifier = ANY(liked_by)
+  ) INTO liked;
+  
+  IF liked THEN
+    UPDATE stars 
+    SET likes = likes - 1,
+        liked_by = array_remove(liked_by, user_identifier)
+    WHERE id = star_id
+    RETURNING likes INTO current_likes;
+  ELSE
+    UPDATE stars 
+    SET likes = likes + 1,
+        liked_by = array_append(liked_by, user_identifier)
+    WHERE id = star_id
+    RETURNING likes INTO current_likes;
+  END IF;
+  
+  RETURN current_likes;
+END;
+$$;
+
+-- Function to get stars by user
+CREATE OR REPLACE FUNCTION get_user_stars(user_identifier TEXT)
+RETURNS TABLE (
+  id UUID,
+  text TEXT,
+  name VARCHAR,
+  emotion VARCHAR,
+  likes INTEGER,
+  liked_by TEXT[],
+  created_at TIMESTAMP WITH TIME ZONE,
+  comment_count BIGINT
+) LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    s.id,
+    s.text,
+    s.name,
+    s.emotion,
+    s.likes,
+    s.liked_by,
+    s.created_at,
+    COUNT(c.id) AS comment_count
+  FROM stars s
+  LEFT JOIN comments c ON c.star_id = s.id
+  WHERE s.user_id = user_identifier
+  GROUP BY s.id
+  ORDER BY s.created_at DESC;
+END;
+$$;
+
+-- Function to get stars with comment counts
+CREATE OR REPLACE FUNCTION get_stars_with_counts()
+RETURNS TABLE (
+  id UUID,
+  user_id TEXT,
+  text TEXT,
+  name VARCHAR,
+  emotion VARCHAR,
+  likes INTEGER,
+  liked_by TEXT[],
+  created_at TIMESTAMP WITH TIME ZONE,
+  comment_count BIGINT
+) LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    s.id,
+    s.user_id,
+    s.text,
+    s.name,
+    s.emotion,
+    s.likes,
+    s.liked_by,
+    s.created_at,
+    COUNT(c.id) AS comment_count
+  FROM stars s
+  LEFT JOIN comments c ON c.star_id = s.id
+  GROUP BY s.id
+  ORDER BY s.created_at DESC;
+END;
+$$;
+
+-- Function to search stars
+CREATE OR REPLACE FUNCTION search_stars(search_query TEXT)
+RETURNS TABLE (
+  id UUID,
+  user_id TEXT,
+  text TEXT,
+  name VARCHAR,
+  emotion VARCHAR,
+  likes INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE
+) LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    s.id,
+    s.user_id,
+    s.text,
+    s.name,
+    s.emotion,
+    s.likes,
+    s.created_at
+  FROM stars s
+  WHERE s.text ILIKE '%' || search_query || '%'
+     OR s.name ILIKE '%' || search_query || '%'
+  ORDER BY s.created_at DESC;
+END;
+$$;
+
+-- Function to get stars by emotion
+CREATE OR REPLACE FUNCTION get_stars_by_emotion(emotion_filter TEXT)
+RETURNS TABLE (
+  id UUID,
+  user_id TEXT,
+  text TEXT,
+  name VARCHAR,
+  emotion VARCHAR,
+  likes INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE
+) LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    s.id,
+    s.user_id,
+    s.text,
+    s.name,
+    s.emotion,
+    s.likes,
+    s.created_at
+  FROM stars s
+  WHERE s.emotion = emotion_filter
+  ORDER BY s.created_at DESC;
+END;
+$$;
+
+-- Function to update user stats
+CREATE OR REPLACE FUNCTION update_user_stats(user_identifier TEXT)
+RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE
+  star_count INTEGER;
+  like_count INTEGER;
+  comment_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO star_count
+  FROM stars
+  WHERE user_id = user_identifier;
+  
+  SELECT COALESCE(SUM(likes), 0) INTO like_count
+  FROM stars
+  WHERE user_id = user_identifier;
+  
+  SELECT COUNT(*) INTO comment_count
+  FROM comments
+  WHERE user_id = user_identifier;
+  
+  INSERT INTO user_stats (user_id, total_stars, total_likes_received, total_comments_made)
+  VALUES (user_identifier, star_count, like_count, comment_count)
+  ON CONFLICT (user_id) DO UPDATE
+  SET 
+    total_stars = EXCLUDED.total_stars,
+    total_likes_received = EXCLUDED.total_likes_received,
+    total_comments_made = EXCLUDED.total_comments_made,
+    updated_at = NOW();
+END;
+$$;
+
+-- Function to delete user stars
+CREATE OR REPLACE FUNCTION delete_user_stars(user_identifier TEXT)
+RETURNS INTEGER LANGUAGE plpgsql AS $$
+DECLARE
+  deleted_count INTEGER;
+BEGIN
+  DELETE FROM stars WHERE user_id = user_identifier;
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  RETURN deleted_count;
+END;
+$$;
+
+-- Function to get popular stars
+CREATE OR REPLACE FUNCTION get_popular_stars(limit_count INTEGER DEFAULT 20)
+RETURNS TABLE (
+  id UUID,
+  user_id TEXT,
+  text TEXT,
+  name VARCHAR,
+  emotion VARCHAR,
+  likes INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE,
+  comment_count BIGINT
+) LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    s.id,
+    s.user_id,
+    s.text,
+    s.name,
+    s.emotion,
+    s.likes,
+    s.created_at,
+    COUNT(c.id) AS comment_count
+  FROM stars s
+  LEFT JOIN comments c ON c.star_id = s.id
+  GROUP BY s.id
+  ORDER BY s.likes DESC, s.created_at DESC
+  LIMIT limit_count;
+END;
+$$;
+
+-- Function to get recent stars
+CREATE OR REPLACE FUNCTION get_recent_stars(limit_count INTEGER DEFAULT 50)
+RETURNS TABLE (
+  id UUID,
+  user_id TEXT,
+  text TEXT,
+  name VARCHAR,
+  emotion VARCHAR,
+  likes INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE,
+  comment_count BIGINT
+) LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    s.id,
+    s.user_id,
+    s.text,
+    s.name,
+    s.emotion,
+    s.likes,
+    s.created_at,
+    COUNT(c.id) AS comment_count
+  FROM stars s
+  LEFT JOIN comments c ON c.star_id = s.id
+  GROUP BY s.id
+  ORDER BY s.created_at DESC
+  LIMIT limit_count;
+END;
+$$;
+
+-- ============================================================
+-- TRIGGERS
+-- ============================================================
+
+-- Auto-update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER update_stars_updated_at
+  BEFORE UPDATE ON stars
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_user_stats_updated_at
+  BEFORE UPDATE ON user_stats
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger to update user stats when a star is added/modified
+CREATE OR REPLACE FUNCTION trigger_update_user_stats()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM update_user_stats(NEW.user_id);
+  ELSIF TG_OP = 'UPDATE' THEN
+    PERFORM update_user_stats(NEW.user_id);
+  ELSIF TG_OP = 'DELETE' THEN
+    PERFORM update_user_stats(OLD.user_id);
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER update_stats_on_star_change
+  AFTER INSERT OR UPDATE OR DELETE ON stars
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_update_user_stats();
+
+-- ============================================================
+-- VIEWS
+-- ============================================================
+
+-- View: Stars with comment counts
+CREATE OR REPLACE VIEW star_stats AS
+SELECT 
+  s.*,
+  COUNT(c.id) AS comment_count
+FROM stars s
+LEFT JOIN comments c ON c.star_id = s.id
+GROUP BY s.id;
+
+-- View: Top liked stars
+CREATE OR REPLACE VIEW top_stars AS
+SELECT *
+FROM star_stats
+ORDER BY likes DESC, created_at DESC
+LIMIT 50;
+
+-- View: Recent activity
+CREATE OR REPLACE VIEW recent_activity AS
+SELECT 
+  'star' as type,
+  id,
+  user_id,
+  text as content,
+  name,
+  emotion,
+  created_at
+FROM stars
+UNION ALL
+SELECT 
+  'comment' as type,
+  id,
+  user_id,
+  text as content,
+  name,
+  'Comment' as emotion,
+  created_at
+FROM comments
+ORDER BY created_at DESC
+LIMIT 100;
+
+-- ============================================================
+-- GRANT PERMISSIONS
+-- ============================================================
+
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+
+-- ============================================================
+-- DONE
+-- ============================================================
+SELECT 'SoulVerse schema created successfully!' as status;

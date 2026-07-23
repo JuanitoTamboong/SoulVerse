@@ -1,5 +1,5 @@
 // ============================================================
-// EMOTION GALAXY — Main Application
+// EMOTION GALAXY — Main Application with Supabase
 // ============================================================
 
 import * as THREE from 'three';
@@ -7,36 +7,47 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/+esm';
+
+// ============================================================
+// SUPABASE CONFIG
+// ============================================================
+const SUPABASE_URL = 'https://apeicnafzeoplkveypdq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwZWljbmFmemVvcGxrdmV5cGRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTIwMTUsImV4cCI6MjEwMDMyODAxNX0.gNWBR2xLgLZ7P3LpgA8Fjn_duhhVM4S7NZcbjaGJR1Y';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ============================================================
 // CONFIG
 // ============================================================
 const COLORS = {
-  Happy:     '#FFD700',
-  Sad:       '#6A5ACD',
-  Angry:     '#FF4500',
-  Anxious:   '#00CED1',
-  Excited:   '#FF69B4',
-  Grateful:  '#32CD32',
-  Hopeful:   '#FFA500',
-  Lonely:    '#C0C0C0',
-  Love:      '#FF1493',
-  Peaceful:  '#87CEEB',
-  General:   '#A78BFA',
+  Happy: '#FFD700',
+  Sad: '#6A5ACD',
+  Angry: '#FF4500',
+  Anxious: '#00CED1',
+  Excited: '#FF69B4',
+  Grateful: '#32CD32',
+  Hopeful: '#FFA500',
+  Lonely: '#C0C0C0',
+  Love: '#FF1493',
+  Peaceful: '#87CEEB',
+  General: '#A78BFA',
 };
+
 const EMOTION_ICONS = {
-  General:  '✦', 
-  Happy:    '😊', 
-  Sad:      '😢', 
-  Angry:    '😠', 
-  Anxious:  '😰', 
-  Excited:  '🤩', 
-  Grateful: '🙏', 
-  Hopeful:  '🌟', 
-  Lonely:   '💔', 
-  Love:     '❤️', 
+  General: '✦',
+  Happy: '😊',
+  Sad: '😢',
+  Angry: '😠',
+  Anxious: '😰',
+  Excited: '🤩',
+  Grateful: '🙏',
+  Hopeful: '🌟',
+  Lonely: '💔',
+  Love: '❤️',
   Peaceful: '🕊️',
 };
+
 const PLACEHOLDERS = [
   "How are you feeling today?",
   "What's on your mind?",
@@ -44,6 +55,7 @@ const PLACEHOLDERS = [
   "Share something beautiful...",
   "What's in your heart?",
 ];
+
 const GALAXY_ARMS = 4;
 const GALAXY_RADIUS = 180;
 const GALAXY_THICKNESS = 20;
@@ -67,7 +79,20 @@ const state = {
   transitioning: false,
   myStarIds: new Set(),
   isNewUser: true,
+  loading: false,
+  sessionId: null,
 };
+
+// Generate session ID
+function getSessionId() {
+  let id = localStorage.getItem('soulverse_session_id');
+  if (!id) {
+    id = 'user_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    localStorage.setItem('soulverse_session_id', id);
+  }
+  return id;
+}
+state.sessionId = getSessionId();
 
 // DOM refs
 const $ = (s) => document.querySelector(s);
@@ -120,47 +145,210 @@ function showToast(msg) {
 }
 
 // ============================================================
-// LOCAL STORAGE
+// SUPABASE OPERATIONS
 // ============================================================
-function loadMessages() {
+async function loadMessages() {
   try {
-    const data = localStorage.getItem('emotionGalaxy_messages');
-    return data ? JSON.parse(data) : [];
-  } catch { return []; }
+    const { data, error } = await supabase
+      .from('stars')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Supabase loadMessages error:', error);
+      showToast('⚠️ Failed to load stars');
+      return [];
+    }
+    
+    return data || [];
+  } catch (err) {
+    console.error('loadMessages error:', err);
+    showToast('⚠️ Failed to load stars');
+    return [];
+  }
 }
 
-function saveMessages() {
+async function saveMessage(text, name, emotion) {
   try {
-    localStorage.setItem('emotionGalaxy_messages', JSON.stringify(state.messages));
-  } catch {}
+    if (!text || !text.trim()) {
+      showToast('⚠️ Please enter a message');
+      return null;
+    }
+
+    const newStar = {
+      text: text.trim(),
+      name: (name && name.trim()) ? name.trim() : 'Anonymous',
+      emotion: emotion || 'General',
+      user_id: state.sessionId,
+      likes: 0,
+      liked_by: []
+      // Note: is_mine is NOT in the stars table
+    };
+
+    const { data, error } = await supabase
+      .from('stars')
+      .insert([newStar])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase insert error:', error);
+      throw error;
+    }
+    
+    if (state.soundOn) playChime();
+    showToast('✨ Star created! Your emotion is now in the galaxy.');
+    return data;
+  } catch (err) {
+    console.error('saveMessage error:', err);
+    showToast('⚠️ Failed to save star');
+    return null;
+  }
 }
 
-function loadMyStarIds() {
+async function updateMessage(starId, text) {
   try {
-    const data = localStorage.getItem('emotionGalaxy_myStars');
-    return data ? new Set(JSON.parse(data)) : new Set();
-  } catch { return new Set(); }
+    const { data, error } = await supabase
+      .from('stars')
+      .update({ text: text.trim() })
+      .eq('id', starId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    
+    const index = state.messages.findIndex(m => m.id === starId);
+    if (index !== -1) {
+      state.messages[index].text = data.text;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('updateMessage error:', err);
+    showToast('⚠️ Failed to update star');
+    return null;
+  }
 }
 
-function saveMyStarIds() {
+async function deleteMessage(starId) {
   try {
-    localStorage.setItem('emotionGalaxy_myStars', JSON.stringify([...state.myStarIds]));
-  } catch {}
+    const { error } = await supabase
+      .from('stars')
+      .delete()
+      .eq('id', starId);
+
+    if (error) throw error;
+    
+    state.messages = state.messages.filter(m => m.id !== starId);
+    state.myStarIds.delete(starId);
+    
+    return true;
+  } catch (err) {
+    console.error('deleteMessage error:', err);
+    showToast('⚠️ Failed to delete star');
+    return false;
+  }
 }
 
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+async function toggleLike(starId) {
+  try {
+    const { data, error } = await supabase.rpc('toggle_like', {
+      star_id: starId,
+      user_identifier: state.sessionId
+    });
+
+    if (error) throw error;
+    
+    const msg = state.messages.find(m => m.id === starId);
+    if (msg) {
+      msg.likes = data;
+      const likedBy = msg.liked_by || [];
+      const userLiked = likedBy.includes(state.sessionId);
+      if (userLiked) {
+        msg.liked_by = likedBy.filter(id => id !== state.sessionId);
+      } else {
+        msg.liked_by = [...likedBy, state.sessionId];
+      }
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('toggleLike error:', err);
+    showToast('⚠️ Failed to toggle like');
+    return null;
+  }
 }
 
-function getSpiralPosition(index, total) {
-  const t = total > 1 ? index / total : 0.5;
-  const angle = t * Math.PI * 2 * GALAXY_ARMS + (Math.random() - 0.5) * 0.3;
-  const radius = t * GALAXY_RADIUS + (Math.random() - 0.5) * 8;
-  return {
-    x: Math.cos(angle) * radius + (Math.random() - 0.5) * 4,
-    y: (Math.random() - 0.5) * GALAXY_THICKNESS * 0.6,
-    z: Math.sin(angle) * radius + (Math.random() - 0.5) * 4,
-  };
+async function loadComments(starId) {
+  try {
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('star_id', starId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('loadComments error:', err);
+    return [];
+  }
+}
+
+async function saveComment(starId, text, name) {
+  try {
+    const newComment = {
+      star_id: starId,
+      text: text.trim(),
+      name: (name && name.trim()) ? name.trim() : 'Anonymous',
+      user_id: state.sessionId,
+      is_mine: true // This column exists in the comments table
+    };
+
+    const { data, error } = await supabase
+      .from('comments')
+      .insert([newComment])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('saveComment error:', err);
+    showToast('⚠️ Failed to save comment');
+    return null;
+  }
+}
+
+// ============================================================
+// INITIALIZE
+// ============================================================
+async function initializeApp() {
+  state.loading = true;
+  
+  const stars = await loadMessages();
+  state.messages = stars;
+  
+  state.myStarIds = new Set();
+  state.messages.forEach(msg => {
+    if (msg.user_id === state.sessionId) {
+      state.myStarIds.add(msg.id);
+    }
+  });
+
+  state.loading = false;
+  
+  if (state.messages.length === 0) {
+    landingScreen.classList.remove('hidden');
+    hud.style.display = 'none';
+    showToast('✦ Welcome! Share your emotion to create your first star!');
+  } else {
+    landingScreen.classList.add('hidden');
+    hud.style.display = 'flex';
+  }
+
+  buildStars();
+  buildFilterPills();
 }
 
 // ============================================================
@@ -188,7 +376,7 @@ controls.autoRotateSpeed = 0.35;
 controls.target.set(0, 0, 0);
 
 // ============================================================
-// POST-PROCESSING (Bloom)
+// POST-PROCESSING
 // ============================================================
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera);
@@ -203,7 +391,7 @@ const bloomPass = new UnrealBloomPass(
 composer.addPass(bloomPass);
 
 // ============================================================
-// BACKGROUND SPACE
+// BACKGROUND
 // ============================================================
 scene.fog = new THREE.FogExp2(0x000011, 0.0008);
 
@@ -211,27 +399,24 @@ function createStarField() {
   const count = 8000;
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
-  const sizes = new Float32Array(count);
 
   for (let i = 0; i < count; i++) {
     const r = 200 + Math.random() * 600;
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    positions[i*3]   = r * Math.sin(phi) * Math.cos(theta);
-    positions[i*3+1] = r * Math.cos(phi) * 0.3;
-    positions[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.cos(phi) * 0.3;
+    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
 
     const c = new THREE.Color().setHSL(0.65 + Math.random() * 0.2, 0.3, 0.5 + Math.random() * 0.4);
-    colors[i*3]   = c.r;
-    colors[i*3+1] = c.g;
-    colors[i*3+2] = c.b;
-    sizes[i] = 0.5 + Math.random() * 1.5;
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
   }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
   const mat = new THREE.PointsMaterial({
     size: 0.8,
@@ -249,7 +434,7 @@ function createStarField() {
 createStarField();
 
 // ============================================================
-// GALAXY CORE GLOW
+// GALAXY CORE
 // ============================================================
 function createGalaxyCore() {
   const count = 1500;
@@ -259,13 +444,13 @@ function createGalaxyCore() {
     const r = Math.random() * 12;
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    positions[i*3]   = r * Math.sin(phi) * Math.cos(theta);
-    positions[i*3+1] = r * Math.cos(phi) * 0.2;
-    positions[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
-    const c = new THREE.Color().setHSL(0.7 + Math.random()*0.15, 0.8, 0.6 + Math.random()*0.3);
-    colors[i*3]   = c.r;
-    colors[i*3+1] = c.g;
-    colors[i*3+2] = c.b;
+    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.cos(phi) * 0.2;
+    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    const c = new THREE.Color().setHSL(0.7 + Math.random() * 0.15, 0.8, 0.6 + Math.random() * 0.3);
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -290,8 +475,11 @@ function createGalaxyCore() {
 createGalaxyCore();
 
 // ============================================================
-// STAR SPRITE CREATION
+// STAR TEXTURES
 // ============================================================
+const textureCache = new Map();
+const userTextureCache = new Map();
+
 function createStarTexture(colorHex, size = 128) {
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -299,15 +487,16 @@ function createStarTexture(colorHex, size = 128) {
   const ctx = canvas.getContext('2d');
 
   const color = new THREE.Color(colorHex);
-  const cx = size/2, cy = size/2;
-  const maxR = size/2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const maxR = size / 2;
 
   const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
-  grad.addColorStop(0, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},1)`);
-  grad.addColorStop(0.15, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.9)`);
-  grad.addColorStop(0.4, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.5)`);
-  grad.addColorStop(0.7, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.2)`);
-  grad.addColorStop(1, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0)`);
+  grad.addColorStop(0, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},1)`);
+  grad.addColorStop(0.15, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.9)`);
+  grad.addColorStop(0.4, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.5)`);
+  grad.addColorStop(0.7, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.2)`);
+  grad.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
 
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
@@ -315,7 +504,7 @@ function createStarTexture(colorHex, size = 128) {
   const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.25);
   coreGrad.addColorStop(0, '#ffffff');
   coreGrad.addColorStop(0.3, '#ffffff');
-  coreGrad.addColorStop(0.6, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.95)`);
+  coreGrad.addColorStop(0.6, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.95)`);
   coreGrad.addColorStop(1, 'transparent');
   ctx.fillStyle = coreGrad;
   ctx.fillRect(0, 0, size, size);
@@ -326,13 +515,13 @@ function createStarTexture(colorHex, size = 128) {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
-    const g = ctx.createLinearGradient(0, -maxR*0.9, 0, maxR*0.9);
+    const g = ctx.createLinearGradient(0, -maxR * 0.9, 0, maxR * 0.9);
     g.addColorStop(0, `rgba(255,255,255,0.4)`);
-    g.addColorStop(0.2, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.4)`);
+    g.addColorStop(0.2, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.4)`);
     g.addColorStop(0.5, `rgba(255,255,255,0.15)`);
-    g.addColorStop(1, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0)`);
+    g.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
     ctx.fillStyle = g;
-    ctx.fillRect(-2, -maxR*0.9, 4, maxR*1.8);
+    ctx.fillRect(-2, -maxR * 0.9, 4, maxR * 1.8);
     ctx.restore();
   }
 
@@ -346,17 +535,18 @@ function createUserStarTexture(colorHex, size = 192) {
   const ctx = canvas.getContext('2d');
 
   const color = new THREE.Color(colorHex);
-  const cx = size/2, cy = size/2;
-  const maxR = size/2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const maxR = size / 2;
 
   const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
   grad.addColorStop(0, `rgba(255,255,255,1)`);
   grad.addColorStop(0.05, `rgba(255,255,255,1)`);
-  grad.addColorStop(0.15, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},1)`);
-  grad.addColorStop(0.35, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.8)`);
-  grad.addColorStop(0.6, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.4)`);
-  grad.addColorStop(0.8, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.15)`);
-  grad.addColorStop(1, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0)`);
+  grad.addColorStop(0.15, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},1)`);
+  grad.addColorStop(0.35, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.8)`);
+  grad.addColorStop(0.6, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.4)`);
+  grad.addColorStop(0.8, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.15)`);
+  grad.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
 
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
@@ -364,7 +554,7 @@ function createUserStarTexture(colorHex, size = 192) {
   const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.3);
   coreGrad.addColorStop(0, '#ffffff');
   coreGrad.addColorStop(0.2, '#ffffff');
-  coreGrad.addColorStop(0.5, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.95)`);
+  coreGrad.addColorStop(0.5, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.95)`);
   coreGrad.addColorStop(1, 'transparent');
   ctx.fillStyle = coreGrad;
   ctx.fillRect(0, 0, size, size);
@@ -375,14 +565,14 @@ function createUserStarTexture(colorHex, size = 192) {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
-    const g = ctx.createLinearGradient(0, -maxR*0.95, 0, maxR*0.95);
+    const g = ctx.createLinearGradient(0, -maxR * 0.95, 0, maxR * 0.95);
     g.addColorStop(0, `rgba(255,255,255,0.7)`);
     g.addColorStop(0.1, `rgba(255,255,255,0.6)`);
-    g.addColorStop(0.25, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.5)`);
+    g.addColorStop(0.25, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.5)`);
     g.addColorStop(0.5, `rgba(255,255,255,0.2)`);
-    g.addColorStop(1, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0)`);
+    g.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
     ctx.fillStyle = g;
-    ctx.fillRect(-3, -maxR*0.95, 6, maxR*1.9);
+    ctx.fillRect(-3, -maxR * 0.95, 6, maxR * 1.9);
     ctx.restore();
   }
 
@@ -392,28 +582,25 @@ function createUserStarTexture(colorHex, size = 192) {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
-    const g = ctx.createLinearGradient(0, -maxR*0.6, 0, maxR*0.6);
+    const g = ctx.createLinearGradient(0, -maxR * 0.6, 0, maxR * 0.6);
     g.addColorStop(0, `rgba(255,255,255,0.35)`);
-    g.addColorStop(0.3, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.2)`);
+    g.addColorStop(0.3, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.2)`);
     g.addColorStop(1, 'transparent');
     ctx.fillStyle = g;
-    ctx.fillRect(-2, -maxR*0.6, 4, maxR*1.2);
+    ctx.fillRect(-2, -maxR * 0.6, 4, maxR * 1.2);
     ctx.restore();
   }
 
   ctx.globalCompositeOperation = 'screen';
   const ringGrad = ctx.createRadialGradient(cx, cy, maxR * 0.5, cx, cy, maxR);
   ringGrad.addColorStop(0, 'transparent');
-  ringGrad.addColorStop(0.7, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.1)`);
-  ringGrad.addColorStop(1, `rgba(${color.r*255|0},${color.g*255|0},${color.b*255|0},0.3)`);
+  ringGrad.addColorStop(0.7, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.1)`);
+  ringGrad.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.3)`);
   ctx.fillStyle = ringGrad;
   ctx.fillRect(0, 0, size, size);
 
   return new THREE.CanvasTexture(canvas);
 }
-
-const textureCache = new Map();
-const userTextureCache = new Map();
 
 function getStarTexture(emotion) {
   const colorHex = COLORS[emotion] || COLORS.General;
@@ -432,30 +619,7 @@ function getUserStarTexture(emotion) {
 }
 
 // ============================================================
-// ADD MESSAGE
-// ============================================================
-function addMessage(text, name, emotion) {
-  const msg = {
-    id: generateId(),
-    text: text.trim(),
-    name: (name && name.trim()) ? name.trim() : 'Anonymous',
-    emotion: emotion || 'General',
-    timestamp: Date.now(),
-    likes: 0,
-    likedBy: [],
-    comments: [],
-  };
-  state.messages.push(msg);
-  state.myStarIds.add(msg.id);
-  saveMessages();
-  saveMyStarIds();
-  buildStars();
-  showToast('✦ Your emotion has become a star!');
-  return msg;
-}
-
-// ============================================================
-// BUILD / REBUILD STARS
+// BUILD STARS
 // ============================================================
 let starGroup = new THREE.Group();
 scene.add(starGroup);
@@ -512,9 +676,9 @@ function buildStars() {
       opacity: isMyStar ? 1.0 : 0.9,
     });
     const sprite = new THREE.Sprite(mat);
-    const baseScale = isMyStar
-      ? 3.5 + Math.random() * 2.0
-      : 1.2 + Math.random() * 1.2;
+    const baseScale = isMyStar ?
+      3.5 + Math.random() * 2.0 :
+      1.2 + Math.random() * 1.2;
     sprite.scale.set(baseScale, baseScale, 1);
     sprite.position.set(msg._pos.x, msg._pos.y, msg._pos.z);
     sprite.userData = { msgId: msg.id, baseScale, phase: Math.random() * Math.PI * 2, isMyStar };
@@ -533,13 +697,13 @@ function updateCounter() {
   const total = state.messages.length;
   const visible = state.starMeshes.length;
   const myStarsCount = state.messages.filter(m => state.myStarIds.has(m.id)).length;
-  
+
   if (state.currentFilter === '__mystars__') {
     starCounter.textContent = `✦ ${visible} / ${myStarsCount} my stars`;
   } else if (state.currentFilter) {
     starCounter.textContent = `✦ ${visible} ${state.currentFilter} stars`;
   } else if (total === 0) {
-    starCounter.textContent = `✦ 0 stars — Share your emotion!`;
+    starCounter.textContent = '✦ 0 stars — Share your emotion!';
   } else if (total === visible) {
     starCounter.textContent = `✦ ${total} star${total !== 1 ? 's' : ''}`;
   } else {
@@ -548,11 +712,11 @@ function updateCounter() {
 }
 
 // ============================================================
-// FILTERS UI
+// FILTERS
 // ============================================================
 function buildFilterPills() {
   filterPills.innerHTML = '';
-  
+
   const allPill = document.createElement('button');
   allPill.className = `filter-pill${!state.currentFilter ? ' active' : ''}`;
   allPill.textContent = 'All';
@@ -580,14 +744,11 @@ function buildFilterPills() {
   });
 }
 
-// ============================================================
-// SET FILTER
-// ============================================================
 function setFilter(emotion) {
   state.currentFilter = emotion || null;
   buildFilterPills();
   buildStars();
-  
+
   if (emotion === '__mystars__' && state.messages.filter(m => state.myStarIds.has(m.id)).length === 0) {
     showToast('✦ You haven\'t created any stars yet. Share your emotion to create your first star!');
   }
@@ -605,19 +766,23 @@ searchInput.addEventListener('input', () => {
 // MODAL
 // ============================================================
 let currentModalMsgId = null;
+let currentModalComments = [];
 
-function openModal(msg) {
+async function openModal(msg) {
   if (!msg) return;
   currentModalMsgId = msg.id;
   modalIcon.textContent = EMOTION_ICONS[msg.emotion] || '✦';
   modalLabel.textContent = msg.emotion;
   modalMessage.textContent = msg.text;
   modalName.textContent = msg.name;
-  const date = new Date(msg.timestamp);
+  const date = new Date(msg.created_at);
   modalTime.textContent = date.toLocaleString();
   modalLikeCount.textContent = msg.likes || 0;
-  modalLikeBtn.classList.toggle('liked', (msg.likedBy || []).length > 0);
-  renderComments(msg);
+  modalLikeBtn.classList.toggle('liked', (msg.liked_by || []).includes(state.sessionId));
+
+  currentModalComments = await loadComments(msg.id);
+  renderComments(currentModalComments);
+
   modal.classList.add('visible');
   controls.autoRotate = false;
 }
@@ -631,67 +796,66 @@ function closeModal() {
 modalBackdrop.addEventListener('click', closeModal);
 modalCloseBtn.addEventListener('click', closeModal);
 
-modalLikeBtn.addEventListener('click', () => {
+modalLikeBtn.addEventListener('click', async () => {
   if (!currentModalMsgId) return;
   const msg = state.messages.find(m => m.id === currentModalMsgId);
   if (!msg) return;
-  if (!msg.likedBy) msg.likedBy = [];
-  const ipKey = 'local_user';
-  if (msg.likedBy.includes(ipKey)) {
-    msg.likes = Math.max(0, (msg.likes || 0) - 1);
-    msg.likedBy = msg.likedBy.filter(x => x !== ipKey);
-  } else {
-    msg.likes = (msg.likes || 0) + 1;
-    msg.likedBy.push(ipKey);
+
+  const newLikes = await toggleLike(msg.id);
+  if (newLikes !== null) {
+    modalLikeCount.textContent = newLikes;
+    const liked = (msg.liked_by || []).includes(state.sessionId);
+    modalLikeBtn.classList.toggle('liked', liked);
   }
-  modalLikeCount.textContent = msg.likes;
-  modalLikeBtn.classList.toggle('liked', msg.likedBy.includes(ipKey));
-  saveMessages();
 });
 
 // ============================================================
-// COMMENTS / CHAT
+// COMMENTS
 // ============================================================
-function renderComments(msg) {
-  if (!msg) return;
+function renderComments(comments) {
   commentsList.innerHTML = '';
-  const comments = msg.comments || [];
-  if (comments.length === 0) {
+  if (!comments || comments.length === 0) {
     commentsList.innerHTML = '<div class="comment-empty">No messages yet. Be the first to leave a kind thought!</div>';
     return;
   }
   comments.forEach(c => {
     const el = document.createElement('div');
-    el.className = 'comment-item' + (c.isMine ? ' is-mine' : '');
-    const date = new Date(c.timestamp);
+    const isMine = c.user_id === state.sessionId;
+    el.className = 'comment-item' + (isMine ? ' is-mine' : '');
+    const date = new Date(c.created_at);
+    const initial = (c.name && c.name !== 'Anonymous') ? c.name.charAt(0).toUpperCase() : '?';
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const mineBadge = isMine ? '<span class="comment-mine-badge">you</span>' : '';
     el.innerHTML = `
-      <div class="comment-author">
-        ${c.name}
-        <span class="comment-time">${date.toLocaleString()}</span>
+      <div class="comment-avatar">${initial}</div>
+      <div class="comment-bubble">
+        <div class="comment-author">
+          <span class="comment-author-name">
+            ${c.name} ${mineBadge}
+          </span>
+          <span class="comment-time">${timeStr}</span>
+        </div>
+        <div class="comment-text">${c.text}</div>
       </div>
-      <div class="comment-text">${c.text}</div>
     `;
     commentsList.appendChild(el);
   });
   commentsList.scrollTop = commentsList.scrollHeight;
 }
 
-function addComment(starId, text) {
+async function addComment(starId, text) {
   if (!text.trim()) return;
   const msg = state.messages.find(m => m.id === starId);
   if (!msg) return;
-  if (!msg.comments) msg.comments = [];
+
   const userName = nameInput.value.trim() || 'Anonymous';
-  msg.comments.push({
-    id: generateId(),
-    text: text.trim(),
-    name: userName,
-    timestamp: Date.now(),
-    isMine: state.myStarIds.has(starId),
-  });
-  saveMessages();
-  renderComments(msg);
-  showToast('✦ Message sent to star!');
+  const newComment = await saveComment(starId, text, userName);
+
+  if (newComment) {
+    currentModalComments.push(newComment);
+    renderComments(currentModalComments);
+    showToast('✦ Message sent to star!');
+  }
 }
 
 commentSendBtn.addEventListener('click', () => {
@@ -762,7 +926,7 @@ renderer.domElement.addEventListener('click', (e) => {
 });
 
 // ============================================================
-// SOUND ENGINE — MP3 Background Music
+// SOUND
 // ============================================================
 let audioCtx = null;
 let bgAudio = null;
@@ -771,7 +935,7 @@ let soundInitialized = false;
 function initAudio() {
   if (soundInitialized) return;
   try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx = new(window.AudioContext || window.webkitAudioContext)();
     soundInitialized = true;
     startBgMusic();
   } catch {}
@@ -784,21 +948,14 @@ function startBgMusic() {
     bgAudio = new Audio('sound/sv-sound.mp3');
     bgAudio.loop = true;
     bgAudio.volume = 0.35;
-    // Connect to AudioContext for Web Audio API integration
-    const track = audioCtx.createMediaElementSource(bgAudio);
-    const gainNode = audioCtx.createGain();
-    gainNode.gain.setValueAtTime(0.35, audioCtx.currentTime);
-    track.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
     bgAudio.play().catch(() => {});
-  } catch (e) {
-    console.warn('Could not load background music:', e);
-  }
+  } catch {}
 }
 
 function stopBgMusic() {
   if (bgAudio) {
-    try { bgAudio.pause(); bgAudio.currentTime = 0; } catch {}
+    try { bgAudio.pause();
+      bgAudio.currentTime = 0; } catch {}
     bgAudio = null;
   }
 }
@@ -822,12 +979,7 @@ function playChime() {
 
 btnSound.addEventListener('click', () => {
   state.soundOn = !state.soundOn;
-  const textSpan = btnSound.querySelector('.btn-text');
-  if (textSpan) {
-    textSpan.textContent = state.soundOn ? 'Sound' : 'Mute';
-  } else {
-    btnSound.textContent = state.soundOn ? '🔊 Sound' : '🔇 Mute';
-  }
+  btnSound.textContent = state.soundOn ? '🔊 Sound' : '🔇 Mute';
   if (state.soundOn) {
     if (audioCtx) startBgMusic();
   } else {
@@ -836,7 +988,7 @@ btnSound.addEventListener('click', () => {
 });
 
 // ============================================================
-// EXPLORE MODE
+// EXPLORE
 // ============================================================
 btnExplore.addEventListener('click', () => {
   if (state.isExploring) {
@@ -919,7 +1071,7 @@ setInterval(() => {
 // ============================================================
 // FORM SUBMIT
 // ============================================================
-form.addEventListener('submit', (e) => {
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const text = input.value.trim();
   if (!text) return;
@@ -927,22 +1079,30 @@ form.addEventListener('submit', (e) => {
   const emotion = emotionCat.value;
 
   initAudio();
-  addMessage(text, name, emotion);
 
-  landingScreen.classList.add('hidden');
-  hud.style.display = 'flex';
-  state.isNewUser = false;
+  const newStar = await saveMessage(text, name, emotion);
+  if (newStar) {
+    state.messages.unshift(newStar);
+    state.myStarIds.add(newStar.id);
 
-  input.value = '';
-  nameInput.value = '';
+    buildStars();
+    buildFilterPills();
 
-  if (state.messages.length === 1) {
-    setTimeout(() => playChime(), 500);
+    landingScreen.classList.add('hidden');
+    hud.style.display = 'flex';
+    state.isNewUser = false;
+
+    input.value = '';
+    nameInput.value = '';
+
+    if (state.messages.length === 1) {
+      setTimeout(() => playChime(), 500);
+    }
   }
 });
 
 // ============================================================
-// BACK BUTTON
+// BACK
 // ============================================================
 btnBack.addEventListener('click', () => {
   landingScreen.classList.remove('hidden');
@@ -955,9 +1115,9 @@ btnBack.addEventListener('click', () => {
 });
 
 // ============================================================
-// REFRESH BUTTON — Reset camera and rebuild galaxy
+// REFRESH
 // ============================================================
-btnRefresh.addEventListener('click', () => {
+btnRefresh.addEventListener('click', async () => {
   closeModal();
   stopExplore();
   controls.autoRotate = true;
@@ -967,13 +1127,23 @@ btnRefresh.addEventListener('click', () => {
   state.currentFilter = null;
   state.searchQuery = '';
   searchInput.value = '';
+
+  const stars = await loadMessages();
+  state.messages = stars;
+  state.myStarIds = new Set();
+  state.messages.forEach(msg => {
+    if (msg.user_id === state.sessionId) {
+      state.myStarIds.add(msg.id);
+    }
+  });
+
   buildFilterPills();
   buildStars();
-  showToast('✦ Galaxy refreshed');
+  showToast('✦ Galaxy refreshed from server');
 });
 
 // ============================================================
-// MY STARS MANAGEMENT PANEL
+// MY STARS
 // ============================================================
 function openMyStars() {
   closeModal();
@@ -995,7 +1165,7 @@ function renderMyStars() {
     return;
   }
 
-  myStars.sort((a, b) => b.timestamp - a.timestamp);
+  myStars.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   myStars.forEach(msg => {
     const item = document.createElement('div');
@@ -1003,15 +1173,14 @@ function renderMyStars() {
     item.dataset.id = msg.id;
 
     const icon = EMOTION_ICONS[msg.emotion] || '✦';
-    const date = new Date(msg.timestamp);
-    const emotionLabel = msg.emotion;
+    const date = new Date(msg.created_at);
 
     item.innerHTML = `
       <div class="mystar-item-icon">${icon}</div>
       <div class="mystar-item-body">
         <div class="mystar-item-text">${msg.text}</div>
         <div class="mystar-item-meta">
-          <span>${emotionLabel}</span>
+          <span>${msg.emotion}</span>
           <span>${date.toLocaleDateString()}</span>
           <span>✦ ${msg.likes || 0}</span>
         </div>
@@ -1050,6 +1219,7 @@ function renderMyStars() {
         const endTarget = targetPos.clone();
         let t = 0;
         const duration = 50;
+
         function anim() {
           t++;
           const p = Math.min(t / duration, 1);
@@ -1058,7 +1228,8 @@ function renderMyStars() {
           controls.target.lerpVectors(startTarget, endTarget, ease);
           controls.update();
           if (p < 1) requestAnimationFrame(anim);
-          else { state.transitioning = false; openModal(msg); }
+          else { state.transitioning = false;
+            openModal(msg); }
         }
         anim();
       }
@@ -1085,13 +1256,15 @@ function startEditStar(msg, itemEl) {
   input.focus();
   input.select();
 
-  body.querySelector('.mystar-save-btn').addEventListener('click', () => {
+  body.querySelector('.mystar-save-btn').addEventListener('click', async () => {
     const newText = input.value.trim();
     if (newText && newText !== originalText) {
-      msg.text = newText;
-      saveMessages();
-      buildStars();
-      showToast('✎ Star updated!');
+      const updated = await updateMessage(msg.id, newText);
+      if (updated) {
+        msg.text = updated.text;
+        buildStars();
+        showToast('✎ Star updated!');
+      }
     }
     renderMyStars();
   });
@@ -1109,15 +1282,14 @@ function startEditStar(msg, itemEl) {
   });
 }
 
-function deleteStar(msg) {
+async function deleteStar(msg) {
   if (!confirm(`Delete this star?\n\n"${msg.text}"`)) return;
-  state.messages = state.messages.filter(m => m.id !== msg.id);
-  state.myStarIds.delete(msg.id);
-  saveMessages();
-  saveMyStarIds();
-  buildStars();
-  renderMyStars();
-  showToast('✕ Star deleted');
+  const success = await deleteMessage(msg.id);
+  if (success) {
+    buildStars();
+    renderMyStars();
+    showToast('✕ Star deleted');
+  }
 }
 
 btnMyStars.addEventListener('click', openMyStars);
@@ -1155,7 +1327,7 @@ function animate() {
       }
       const pulse = 0.85 + 0.15 * Math.sin(state.animTime * 3 + ud.phase);
       sprite.material.opacity = pulse;
-      
+
       if (hoveredStar === sprite) {
         sprite.scale.setScalar(ud.baseScale * 2.5);
         sprite.material.opacity = 1;
@@ -1204,28 +1376,19 @@ function animate() {
 }
 
 // ============================================================
-// INITIALIZATION
+// INIT
 // ============================================================
-state.messages = loadMessages();
-state.myStarIds = loadMyStarIds();
+async function init() {
+  await initializeApp();
 
-if (state.messages.length === 0) {
-  landingScreen.classList.remove('hidden');
-  hud.style.display = 'none';
-  showToast('✦ Welcome! Share your emotion to create your first star!');
-} else {
-  landingScreen.classList.add('hidden');
-  hud.style.display = 'flex';
+  setTimeout(() => {
+    loadingScreen.classList.add('hidden');
+  }, 1500);
+
+  animate();
+
+  document.addEventListener('click', initAudio, { once: true });
+  document.addEventListener('touchstart', initAudio, { once: true });
 }
 
-buildStars();
-buildFilterPills();
-
-setTimeout(() => {
-  loadingScreen.classList.add('hidden');
-}, 1500);
-
-animate();
-
-document.addEventListener('click', initAudio, { once: true });
-document.addEventListener('touchstart', initAudio, { once: true });
+init();
