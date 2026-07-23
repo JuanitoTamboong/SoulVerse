@@ -91,6 +91,7 @@ const btnBack = $('#btn-back');
 const btnSound = $('#btn-sound');
 const btnExplore = $('#btn-explore');
 const btnMyStars = $('#btn-mystars');
+const btnRefresh = $('#btn-refresh');
 const mystarsPanel = $('#mystars-panel');
 const mystarsBackdrop = $('#mystars-backdrop');
 const mystarsCloseBtn = $('#mystars-close-btn');
@@ -977,6 +978,26 @@ form.addEventListener('submit', (e) => {
   if (state.messages.length === 1) {
     setTimeout(() => playChime(), 500);
   }
+});
+
+// ============================================================
+// REFRESH BUTTON
+// ============================================================
+btnRefresh.addEventListener('click', () => {
+  // Reload data from localStorage
+  state.messages = loadMessages();
+  state.myStarIds = loadMyStarIds();
+  // Rebuild stars, filters, and counter
+  buildStars();
+  buildFilterPills();
+  // Reset camera to default view
+  controls.autoRotate = true;
+  camera.position.set(0, 60, 140);
+  controls.target.set(0, 0, 0);
+  controls.update();
+  closeModal();
+  closeMyStars();
+  showToast('🔄 Galaxy refreshed!');
 });
 
 // ============================================================
