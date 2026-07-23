@@ -61,6 +61,7 @@
     <button class="hud-btn" id="btn-back">← Back</button>
     <button class="hud-btn" id="btn-sound">🔊 Sound</button>
     <button class="hud-btn" id="btn-explore">🎲 Explore</button>
+    <button class="hud-btn" id="btn-mystars">⭐ Manage</button>
 
     <input class="hud-search" id="search-input" type="text" placeholder="Search stars...">
 
@@ -78,11 +79,35 @@
       <div class="modal-message" id="modal-message">—</div>
       <div class="modal-name" id="modal-name">Anonymous</div>
       <div class="modal-time" id="modal-time">just now</div>
+      <div id="modal-comments">
+        <div class="comments-list" id="comments-list">
+          <div class="comment-empty">No messages yet. Be the first to leave a kind thought!</div>
+        </div>
+        <div class="comment-form">
+          <input class="comment-input" id="comment-input" type="text" placeholder="Leave a message..." autocomplete="off">
+          <button class="comment-send-btn" id="comment-send-btn">Send</button>
+        </div>
+      </div>
       <div class="modal-actions">
         <button class="modal-like-btn" id="modal-like-btn">
           💡 <span id="modal-like-count">0</span> Send Light
         </button>
         <button class="modal-close-btn" id="modal-close-btn">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== MY STARS MANAGEMENT PANEL ====== -->
+  <div id="mystars-panel">
+    <div class="backdrop" id="mystars-backdrop"></div>
+    <div class="mystars-card">
+      <div class="mystars-header">
+        <h2>⭐ My Stars</h2>
+        <span class="mystars-count" id="mystars-count">0 stars</span>
+        <button class="mystars-close-btn" id="mystars-close-btn">✕</button>
+      </div>
+      <div class="mystars-list" id="mystars-list">
+        <div class="mystars-empty">You haven't created any stars yet. Share your emotion to create your first star!</div>
       </div>
     </div>
   </div>
@@ -108,4 +133,3 @@
   <script type="module" src="js/script.js"></script>
 </body>
 </html>
-

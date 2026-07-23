@@ -57,7 +57,8 @@ const state = {
   cameraTarget: null,
   cameraTargetPos: null,
   transitioning: false,
-  myStarIds: new Set(), // IDs of stars created by this user/browser
+  myStarIds: new Set(),
+  isNewUser: true, // Track if user is new
 };
 
 // DOM refs
@@ -82,10 +83,20 @@ const modalTime = $('#modal-time');
 const modalLikeBtn = $('#modal-like-btn');
 const modalLikeCount = $('#modal-like-count');
 const modalCloseBtn = $('#modal-close-btn');
+const commentsList = $('#comments-list');
+const commentInput = $('#comment-input');
+const commentSendBtn = $('#comment-send-btn');
 const toastEl = $('#toast');
 const btnBack = $('#btn-back');
 const btnSound = $('#btn-sound');
 const btnExplore = $('#btn-explore');
+const btnMyStars = $('#btn-mystars');
+const mystarsPanel = $('#mystars-panel');
+const mystarsBackdrop = $('#mystars-backdrop');
+const mystarsCloseBtn = $('#mystars-close-btn');
+const mystarsList = $('#mystars-list');
+const mystarsCount = $('#mystars-count');
+const loadingScreen = $('#loading-screen');
 
 // ============================================================
 // TOAST
@@ -408,6 +419,29 @@ function getUserStarTexture(emotion) {
 }
 
 // ============================================================
+// ADD MESSAGE
+// ============================================================
+function addMessage(text, name, emotion) {
+  const msg = {
+    id: generateId(),
+    text: text.trim(),
+    name: (name && name.trim()) ? name.trim() : 'Anonymous',
+    emotion: emotion || 'General',
+    timestamp: Date.now(),
+    likes: 0,
+    likedBy: [],
+    comments: [],
+  };
+  state.messages.push(msg);
+  state.myStarIds.add(msg.id);
+  saveMessages();
+  saveMyStarIds();
+  buildStars();
+  showToast('✦ Your emotion has become a star!');
+  return msg;
+}
+
+// ============================================================
 // BUILD / REBUILD STARS
 // ============================================================
 let starGroup = new THREE.Group();
@@ -425,8 +459,17 @@ function buildStars() {
   state.starDataMap.clear();
 
   const msgs = state.messages;
+  
+  // Filter messages based on current filter and search
   const filteredMsgs = msgs.filter(m => {
-    if (state.currentFilter && m.emotion !== state.currentFilter) return false;
+    // Check My Stars filter
+    if (state.currentFilter === '__mystars__') {
+      if (!state.myStarIds.has(m.id)) return false;
+    } else if (state.currentFilter) {
+      if (m.emotion !== state.currentFilter) return false;
+    }
+    
+    // Check search query
     if (state.searchQuery) {
       const q = state.searchQuery.toLowerCase();
       const txt = (m.text + ' ' + m.name).toLowerCase();
@@ -435,11 +478,17 @@ function buildStars() {
     return true;
   });
 
-  // Assign positions
+  // If no messages match, show empty state
+  if (filteredMsgs.length === 0) {
+    updateCounter();
+    return;
+  }
+
+  // Assign positions - use spiral distribution
   filteredMsgs.forEach((msg, idx) => {
     const targetT = filteredMsgs.length > 1 ? idx / (filteredMsgs.length - 1) : 0.5;
-    const angle = targetT * Math.PI * 2 * GALAXY_ARMS;
-    const radius = targetT * GALAXY_RADIUS;
+    const angle = targetT * Math.PI * 2 * GALAXY_ARMS + (Math.random() - 0.5) * 0.2;
+    const radius = targetT * GALAXY_RADIUS + (Math.random() - 0.5) * 5;
     msg._pos = {
       x: Math.cos(angle) * radius + (Math.random() - 0.5) * 3,
       y: (Math.random() - 0.5) * GALAXY_THICKNESS * 0.5,
@@ -447,6 +496,7 @@ function buildStars() {
     };
   });
 
+  // Create sprites for each filtered message
   filteredMsgs.forEach((msg) => {
     const isMyStar = state.myStarIds.has(msg.id);
     const texture = isMyStar ? getUserStarTexture(msg.emotion) : getStarTexture(msg.emotion);
@@ -459,8 +509,8 @@ function buildStars() {
     });
     const sprite = new THREE.Sprite(mat);
     const baseScale = isMyStar
-      ? 1.5 + Math.random() * 1.0   // bigger base for user's stars
-      : 0.8 + Math.random() * 1.2;
+      ? 2.0 + Math.random() * 1.4
+      : 1.0 + Math.random() * 1.2;
     sprite.scale.set(baseScale, baseScale, 1);
     sprite.position.set(msg._pos.x, msg._pos.y, msg._pos.z);
     sprite.userData = { msgId: msg.id, baseScale, phase: Math.random() * Math.PI * 2, isMyStar };
@@ -473,34 +523,22 @@ function buildStars() {
 }
 
 // ============================================================
-// ADD MESSAGE
-// ============================================================
-function addMessage(text, name, emotion) {
-  const msg = {
-    id: generateId(),
-    text: text.trim(),
-    name: (name && name.trim()) ? name.trim() : 'Anonymous',
-    emotion: emotion || 'General',
-    timestamp: Date.now(),
-    likes: 0,
-    likedBy: [],
-  };
-  state.messages.push(msg);
-  state.myStarIds.add(msg.id);
-  saveMessages();
-  saveMyStarIds();
-  buildStars();
-  showToast('✦ Your emotion has become a star!');
-  return msg;
-}
-
-// ============================================================
 // UPDATE COUNTER
 // ============================================================
 function updateCounter() {
   const total = state.messages.length;
   const visible = state.starMeshes.length;
-  if (total === visible) {
+  
+  // Count how many stars the user has
+  const myStarsCount = state.messages.filter(m => state.myStarIds.has(m.id)).length;
+  
+  if (state.currentFilter === '__mystars__') {
+    starCounter.textContent = `⭐ ${visible} / ${myStarsCount} my stars`;
+  } else if (state.currentFilter) {
+    starCounter.textContent = `✦ ${visible} ${state.currentFilter} stars`;
+  } else if (total === 0) {
+    starCounter.textContent = `✦ 0 stars — Share your emotion!`;
+  } else if (total === visible) {
     starCounter.textContent = `✦ ${total} star${total !== 1 ? 's' : ''}`;
   } else {
     starCounter.textContent = `✦ ${visible} / ${total} stars`;
@@ -512,6 +550,8 @@ function updateCounter() {
 // ============================================================
 function buildFilterPills() {
   filterPills.innerHTML = '';
+  
+  // All pill
   const allPill = document.createElement('button');
   allPill.className = `filter-pill${!state.currentFilter ? ' active' : ''}`;
   allPill.textContent = 'All';
@@ -519,21 +559,40 @@ function buildFilterPills() {
   allPill.addEventListener('click', () => setFilter(''));
   filterPills.appendChild(allPill);
 
+  // My Stars pill with count
+  const myStarsCount = state.messages.filter(m => state.myStarIds.has(m.id)).length;
+  const myStarsPill = document.createElement('button');
+  myStarsPill.className = `filter-pill${state.currentFilter === '__mystars__' ? ' active' : ''}`;
+  myStarsPill.textContent = `⭐ My Stars (${myStarsCount})`;
+  myStarsPill.dataset.emotion = '__mystars__';
+  myStarsPill.addEventListener('click', () => setFilter('__mystars__'));
+  filterPills.appendChild(myStarsPill);
+
+  // Emotion pills
   const emotions = Object.keys(COLORS);
   emotions.forEach(em => {
+    const count = state.messages.filter(m => m.emotion === em).length;
     const pill = document.createElement('button');
     pill.className = `filter-pill${state.currentFilter === em ? ' active' : ''}`;
-    pill.textContent = `${EMOTION_ICONS[em] || '✨'} ${em}`;
+    pill.textContent = `${EMOTION_ICONS[em] || '✨'} ${em} (${count})`;
     pill.dataset.emotion = em;
     pill.addEventListener('click', () => setFilter(em));
     filterPills.appendChild(pill);
   });
 }
 
+// ============================================================
+// SET FILTER
+// ============================================================
 function setFilter(emotion) {
   state.currentFilter = emotion || null;
   buildFilterPills();
   buildStars();
+  
+  // If filtering to My Stars and none exist, show message
+  if (emotion === '__mystars__' && state.messages.filter(m => state.myStarIds.has(m.id)).length === 0) {
+    showToast('✨ You haven\'t created any stars yet. Share your emotion to create your first star!');
+  }
 }
 
 // ============================================================
@@ -560,6 +619,7 @@ function openModal(msg) {
   modalTime.textContent = date.toLocaleString();
   modalLikeCount.textContent = msg.likes || 0;
   modalLikeBtn.classList.toggle('liked', (msg.likedBy || []).length > 0);
+  renderComments(msg);
   modal.classList.add('visible');
   controls.autoRotate = false;
 }
@@ -589,6 +649,66 @@ modalLikeBtn.addEventListener('click', () => {
   modalLikeCount.textContent = msg.likes;
   modalLikeBtn.classList.toggle('liked', msg.likedBy.includes(ipKey));
   saveMessages();
+});
+
+// ============================================================
+// COMMENTS / CHAT
+// ============================================================
+function renderComments(msg) {
+  if (!msg) return;
+  commentsList.innerHTML = '';
+  const comments = msg.comments || [];
+  if (comments.length === 0) {
+    commentsList.innerHTML = '<div class="comment-empty">No messages yet. Be the first to leave a kind thought!</div>';
+    return;
+  }
+  comments.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'comment-item' + (c.isMine ? ' is-mine' : '');
+    const date = new Date(c.timestamp);
+    el.innerHTML = `
+      <div class="comment-author">
+        ${c.name}
+        <span class="comment-time">${date.toLocaleString()}</span>
+      </div>
+      <div class="comment-text">${c.text}</div>
+    `;
+    commentsList.appendChild(el);
+  });
+  commentsList.scrollTop = commentsList.scrollHeight;
+}
+
+function addComment(starId, text) {
+  if (!text.trim()) return;
+  const msg = state.messages.find(m => m.id === starId);
+  if (!msg) return;
+  if (!msg.comments) msg.comments = [];
+  const userName = nameInput.value.trim() || 'Anonymous';
+  msg.comments.push({
+    id: generateId(),
+    text: text.trim(),
+    name: userName,
+    timestamp: Date.now(),
+    isMine: state.myStarIds.has(starId),
+  });
+  saveMessages();
+  renderComments(msg);
+  showToast('💬 Message sent to star!');
+}
+
+commentSendBtn.addEventListener('click', () => {
+  if (!currentModalMsgId) return;
+  const text = commentInput.value.trim();
+  if (!text) return;
+  addComment(currentModalMsgId, text);
+  commentInput.value = '';
+});
+
+commentInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    commentSendBtn.click();
+  }
 });
 
 // Keyboard close
@@ -624,12 +744,12 @@ renderer.domElement.addEventListener('click', (e) => {
       const endPos = targetPos.clone().add(new THREE.Vector3(0, 5, 20));
       const endTarget = targetPos.clone();
       let t = 0;
-      const duration = 60; // frames
+      const duration = 60;
 
       function animateCamera() {
         t++;
         const p = Math.min(t / duration, 1);
-        const ease = 1 - Math.pow(1 - p, 3); // easeOutCubic
+        const ease = 1 - Math.pow(1 - p, 3);
         camera.position.lerpVectors(startPos, endPos, ease);
         controls.target.lerpVectors(startTarget, endTarget, ease);
         controls.update();
@@ -665,7 +785,6 @@ function startAmbientDrone() {
   if (!audioCtx || !state.soundOn) return;
   stopAmbientDrone();
 
-  // Low rumble
   const osc1 = audioCtx.createOscillator();
   osc1.type = 'sine';
   osc1.frequency.setValueAtTime(55, audioCtx.currentTime);
@@ -673,7 +792,6 @@ function startAmbientDrone() {
   gain1.gain.setValueAtTime(0.08, audioCtx.currentTime);
   gain1.gain.linearRampToValueAtTime(0.04, audioCtx.currentTime + 2);
 
-  // Pad
   const osc2 = audioCtx.createOscillator();
   osc2.type = 'sine';
   osc2.frequency.setValueAtTime(110, audioCtx.currentTime);
@@ -681,7 +799,6 @@ function startAmbientDrone() {
   gain2.gain.setValueAtTime(0.06, audioCtx.currentTime);
   gain2.gain.linearRampToValueAtTime(0.03, audioCtx.currentTime + 3);
 
-  // High shimmer
   const osc3 = audioCtx.createOscillator();
   osc3.type = 'sine';
   osc3.frequency.setValueAtTime(220, audioCtx.currentTime);
@@ -786,7 +903,6 @@ function doExploreStep() {
   const msg = state.starDataMap.get(star.uuid);
   if (!msg) { scheduleExplore(); return; }
 
-  // Camera fly to star
   state.transitioning = true;
   const targetPos = new THREE.Vector3().copy(star.position);
   const startPos = camera.position.clone();
@@ -852,6 +968,7 @@ form.addEventListener('submit', (e) => {
   // Transition to galaxy
   landingScreen.classList.add('hidden');
   hud.style.display = 'flex';
+  state.isNewUser = false;
 
   input.value = '';
   nameInput.value = '';
@@ -877,6 +994,159 @@ btnBack.addEventListener('click', () => {
 });
 
 // ============================================================
+// MY STARS MANAGEMENT PANEL
+// ============================================================
+function openMyStars() {
+  closeModal();
+  renderMyStars();
+  mystarsPanel.classList.add('visible');
+}
+
+function closeMyStars() {
+  mystarsPanel.classList.remove('visible');
+}
+
+function renderMyStars() {
+  const myStars = state.messages.filter(m => state.myStarIds.has(m.id));
+  mystarsCount.textContent = `${myStars.length} star${myStars.length !== 1 ? 's' : ''}`;
+  mystarsList.innerHTML = '';
+
+  if (myStars.length === 0) {
+    mystarsList.innerHTML = '<div class="mystars-empty">You haven\'t created any stars yet. Share your emotion to create your first star!</div>';
+    return;
+  }
+
+  myStars.sort((a, b) => b.timestamp - a.timestamp);
+
+  myStars.forEach(msg => {
+    const item = document.createElement('div');
+    item.className = 'mystar-item';
+    item.dataset.id = msg.id;
+
+    const icon = EMOTION_ICONS[msg.emotion] || '✨';
+    const date = new Date(msg.timestamp);
+    const emotionLabel = msg.emotion;
+
+    item.innerHTML = `
+      <div class="mystar-item-icon">${icon}</div>
+      <div class="mystar-item-body">
+        <div class="mystar-item-text">${msg.text}</div>
+        <div class="mystar-item-meta">
+          <span>${emotionLabel}</span>
+          <span>${date.toLocaleDateString()}</span>
+          <span>💡 ${msg.likes || 0}</span>
+        </div>
+      </div>
+      <div class="mystar-item-actions">
+        <button class="mystar-edit-btn" title="Edit">✏️</button>
+        <button class="mystar-delete-btn" title="Delete">🗑️</button>
+      </div>
+    `;
+
+    const editBtn = item.querySelector('.mystar-edit-btn');
+    editBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startEditStar(msg, item);
+    });
+
+    const deleteBtn = item.querySelector('.mystar-delete-btn');
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteStar(msg);
+    });
+
+    item.addEventListener('click', () => {
+      closeMyStars();
+      const sprite = state.starMeshes.find(s => s.userData.msgId === msg.id);
+      if (sprite) {
+        state.currentFilter = '__mystars__';
+        buildFilterPills();
+        buildStars();
+        controls.autoRotate = false;
+        state.transitioning = true;
+        const targetPos = new THREE.Vector3().copy(sprite.position);
+        const startPos = camera.position.clone();
+        const startTarget = controls.target.clone();
+        const endPos = targetPos.clone().add(new THREE.Vector3(0, 5, 20));
+        const endTarget = targetPos.clone();
+        let t = 0;
+        const duration = 50;
+        function anim() {
+          t++;
+          const p = Math.min(t / duration, 1);
+          const ease = 1 - Math.pow(1 - p, 3);
+          camera.position.lerpVectors(startPos, endPos, ease);
+          controls.target.lerpVectors(startTarget, endTarget, ease);
+          controls.update();
+          if (p < 1) requestAnimationFrame(anim);
+          else { state.transitioning = false; openModal(msg); }
+        }
+        anim();
+      }
+    });
+
+    mystarsList.appendChild(item);
+  });
+}
+
+function startEditStar(msg, itemEl) {
+  itemEl.classList.add('editing');
+  const body = itemEl.querySelector('.mystar-item-body');
+  const originalText = msg.text;
+
+  body.innerHTML = `
+    <input class="mystar-edit-input" type="text" value="${originalText}" maxlength="200">
+    <div class="mystar-edit-actions">
+      <button class="mystar-save-btn">Save</button>
+      <button class="mystar-cancel-btn">Cancel</button>
+    </div>
+  `;
+
+  const input = body.querySelector('.mystar-edit-input');
+  input.focus();
+  input.select();
+
+  body.querySelector('.mystar-save-btn').addEventListener('click', () => {
+    const newText = input.value.trim();
+    if (newText && newText !== originalText) {
+      msg.text = newText;
+      saveMessages();
+      buildStars();
+      showToast('✏️ Star updated!');
+    }
+    renderMyStars();
+  });
+
+  body.querySelector('.mystar-cancel-btn').addEventListener('click', () => {
+    renderMyStars();
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      body.querySelector('.mystar-save-btn').click();
+    } else if (e.key === 'Escape') {
+      body.querySelector('.mystar-cancel-btn').click();
+    }
+  });
+}
+
+function deleteStar(msg) {
+  if (!confirm(`Delete this star?\n\n"${msg.text}"`)) return;
+  state.messages = state.messages.filter(m => m.id !== msg.id);
+  state.myStarIds.delete(msg.id);
+  saveMessages();
+  saveMyStarIds();
+  buildStars();
+  renderMyStars();
+  showToast('🗑️ Star deleted');
+}
+
+// My Stars panel events
+btnMyStars.addEventListener('click', openMyStars);
+mystarsBackdrop.addEventListener('click', closeMyStars);
+mystarsCloseBtn.addEventListener('click', closeMyStars);
+
+// ============================================================
 // WINDOW RESIZE
 // ============================================================
 window.addEventListener('resize', () => {
@@ -895,21 +1165,16 @@ function animate() {
   requestAnimationFrame(animate);
   state.animTime += 0.005;
 
-  // Star twinkling + floating
   state.starMeshes.forEach((sprite) => {
     const ud = sprite.userData;
     const msg = state.starDataMap.get(sprite.uuid);
     const isMyStar = ud.isMyStar && msg;
 
     if (isMyStar) {
-      // Enhanced animation for user's stars
-      const pulse = 0.85 + 0.15 * Math.sin(state.animTime * 4 + ud.phase);
-      sprite.material.opacity = 0.85 + 0.15 * Math.sin(state.animTime * 3 + ud.phase);
       const floatY = Math.sin(state.animTime * 1.2 + ud.phase) * 1.2;
       if (msg && msg._pos) {
         sprite.position.y = msg._pos.y + floatY;
       }
-      // Bigger, more dramatic pulsing
       if (hoveredStar === sprite) {
         sprite.scale.setScalar(ud.baseScale * 2.2);
         sprite.material.opacity = 1;
@@ -918,14 +1183,12 @@ function animate() {
         sprite.scale.setScalar(targetScale);
       }
     } else {
-      // Original animation for other stars
       const twinkle = 0.7 + 0.3 * Math.sin(state.animTime * 2 + ud.phase);
       sprite.material.opacity = twinkle * 0.9;
       const floatY = Math.sin(state.animTime * 0.8 + ud.phase) * 0.4;
       if (msg && msg._pos) {
         sprite.position.y = msg._pos.y + floatY;
       }
-      // Hover glow
       if (hoveredStar === sprite) {
         sprite.scale.setScalar(ud.baseScale * 1.8);
         sprite.material.opacity = 1;
@@ -936,7 +1199,6 @@ function animate() {
     }
   });
 
-  // Hover detection
   raycaster.setFromCamera(pointer, camera);
   const intersects = raycaster.intersectObjects(starGroup.children);
   if (intersects.length > 0) {
@@ -952,7 +1214,6 @@ function animate() {
     }
   }
 
-  // Auto-rotate only when not interacting and modal closed
   if (!modal.classList.contains('visible') && !state.transitioning) {
     controls.autoRotate = true;
   }
@@ -962,13 +1223,19 @@ function animate() {
 }
 
 // ============================================================
-// LOAD EXISTING DATA
+// INITIALIZATION
 // ============================================================
 state.messages = loadMessages();
 state.myStarIds = loadMyStarIds();
 
-// If there are existing messages, go straight to galaxy
-if (state.messages.length > 0) {
+// Check if user is new (no messages in localStorage)
+if (state.messages.length === 0) {
+  // New user - show landing screen
+  landingScreen.classList.remove('hidden');
+  hud.style.display = 'none';
+  showToast('✨ Welcome! Share your emotion to create your first star!');
+} else {
+  // Returning user - go straight to galaxy
   landingScreen.classList.add('hidden');
   hud.style.display = 'flex';
 }
@@ -980,7 +1247,7 @@ buildFilterPills();
 // HIDE LOADING SCREEN
 // ============================================================
 setTimeout(() => {
-  document.getElementById('loading-screen').classList.add('hidden');
+  loadingScreen.classList.add('hidden');
 }, 1500);
 
 // Start animation
@@ -991,7 +1258,3 @@ animate();
 // ============================================================
 document.addEventListener('click', initAudio, { once: true });
 document.addEventListener('touchstart', initAudio, { once: true });
-
-console.log('🌌 Emotion Galaxy loaded! ✦');
-console.log(`📊 ${state.messages.length} stars in the galaxy.`);
-
