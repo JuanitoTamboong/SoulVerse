@@ -1032,6 +1032,34 @@ async function playChime() {
   }
 }
 
+async function playCommentChime() {
+  if (!audioCtx || !state.soundOn) return;
+  try {
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume().catch(() => {});
+    }
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    
+    const now = audioCtx.currentTime;
+    osc.frequency.setValueAtTime(1320, now);
+    osc.frequency.exponentialRampToValueAtTime(1760, now + 0.06);
+    osc.frequency.exponentialRampToValueAtTime(1560, now + 0.15);
+    
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.05, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start(now);
+    osc.stop(now + 0.4);
+  } catch (e) {
+    console.warn('Comment chime playback error:', e);
+  }
+}
+
 btnSound.addEventListener('click', () => {
   state.soundOn = !state.soundOn;
   // Update only the span text inside the button, preserving the SVG icon
@@ -1432,10 +1460,88 @@ function animate() {
 }
 
 // ============================================================
+// REALTIME SUBSCRIPTIONS
+// ============================================================
+function setupRealtimeSubscriptions() {
+  // Subscribe to new stars (INSERT)
+  supabase
+    .channel('stars-realtime')
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'stars' },
+      async (payload) => {
+        const newStar = payload.new;
+        // Ignore own stars (already handled by form submit)
+        if (newStar.user_id === state.sessionId) return;
+
+        // Check if star already exists in state (avoid duplicates)
+        const exists = state.messages.some(m => m.id === newStar.id);
+        if (exists) return;
+
+        // Add to state
+        state.messages.unshift(newStar);
+        if (newStar.user_id === state.sessionId) {
+          state.myStarIds.add(newStar.id);
+        }
+
+        // Rebuild galaxy and filters
+        buildStars();
+        buildFilterPills();
+
+        // Play chime for the new star
+        if (state.soundOn) {
+          await initAudio();
+          playChime();
+        }
+
+        // Toast notification
+        const name = newStar.name || 'Someone';
+        showToast(`✦ ${name} shared a ${newStar.emotion} emotion!`);
+      }
+    )
+    .subscribe();
+
+  // Subscribe to new comments (INSERT)
+  supabase
+    .channel('comments-realtime')
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'comments' },
+      async (payload) => {
+        const newComment = payload.new;
+        // Ignore own comments (already handled by comment send)
+        if (newComment.user_id === state.sessionId) return;
+
+        // Play comment chime
+        if (state.soundOn) {
+          await initAudio();
+          playCommentChime();
+        }
+
+        // If modal is open for this star, append the comment in real-time
+        if (currentModalMsgId === newComment.star_id) {
+          // Avoid duplicates by checking if we already have this comment
+          const exists = currentModalComments.some(c => c.id === newComment.id);
+          if (!exists) {
+            currentModalComments.push(newComment);
+            renderComments(currentModalComments);
+          }
+        }
+
+        // Toast notification
+        const name = newComment.name || 'Someone';
+        showToast(`💬 ${name} left a message on a star`);
+      }
+    )
+    .subscribe();
+}
+
+// ============================================================
 // INIT
 // ============================================================
 async function init() {
   await initializeApp();
+
+  // Set up real-time subscriptions
+  setupRealtimeSubscriptions();
 
   setTimeout(() => {
     loadingScreen.classList.add('hidden');

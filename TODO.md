@@ -1,17 +1,31 @@
-# TODO
+# TODO: Real-Time Sound & UI for Stars & Comments
 
-## [x] Fix Loading Screen Mobile Centering
-- [x] Add `@media (max-width: 480px)` rules for `#loading-screen`, `.loading-star`, `.loading-text`
-- [x] Reduce `.loading-star` font-size from 4rem to 2.5rem
-- [x] Reduce `.loading-text` font-size from 1.2rem to 0.85rem
-- [x] Reduce `.loading-text` letter-spacing from 0.3em to 0.15em
-- [x] Add `padding: 1rem` and `text-align: center` to `#loading-screen`
-- [x] Constrain `.loading-text` width with `max-width: 90%` + auto margins
+## [x] Add `playCommentChime()` - Softer chime for new comments
+- [x] Create function generating a shorter, higher-pitched oscillator tone
+- [x] Distinguish from existing `playChime()` used for new stars
 
-## [x] Fix Landing Subtitle "Where every feeling becomes a star"
-- [x] Add `@media (max-width: 480px)` rules for `.landing-subtitle`
-- [x] Reduce `font-size` to 0.75rem
-- [x] Reduce `letter-spacing` from 0.3em to 0.2em
-- [x] Reduce `margin-bottom` from 2rem to 1.5rem
-- [x] Add `word-break: break-word` and `padding: 0 0.5rem` for safe wrapping
+## [x] Add Realtime Subscriptions for `stars` (INSERT)
+- [x] Subscribe to `postgres_changes` on `stars` table
+- [x] Filter out own stars (`user_id !== state.sessionId`)
+- [x] Play chime on new star from others
+- [x] Show toast notification
+- [x] Add to `state.messages` and rebuild galaxy + filters
+
+## [x] Add Realtime Subscriptions for `comments` (INSERT)
+- [x] Subscribe to `postgres_changes` on `comments` table
+- [x] Play `playCommentChime()` on new comment
+- [x] Show toast notification
+- [x] If modal is open for that star, append comment to comments list
+
+## [x] Call `setupRealtimeSubscriptions()` in `init()`
+- [x] Ensure subscriptions start after Supabase client is ready
+
+## [!] Enable Realtime in Supabase Dashboard (REQUIRED)
+- [ ] Go to Supabase project → Database → Replication
+- [ ] Enable replication for `stars` and `comments` tables
+
+## [ ] Test
+- [ ] Open two browser tabs
+- [ ] Create star in tab 1 → tab 2 should play sound + show star
+- [ ] Comment on a star in tab 1 → tab 2 should play sound + update comments
 
