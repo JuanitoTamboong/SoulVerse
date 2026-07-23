@@ -134,6 +134,13 @@ const mystarsList = $('#mystars-list');
 const mystarsCount = $('#mystars-count');
 const loadingScreen = $('#loading-screen');
 
+// Delete confirm modal refs
+const deleteConfirmModal = $('#delete-confirm-modal');
+const deleteConfirmBackdrop = $('#delete-confirm-backdrop');
+const deleteConfirmPreview = $('#delete-confirm-preview');
+const deleteConfirmCancel = $('#delete-confirm-cancel');
+const deleteConfirmDelete = $('#delete-confirm-delete');
+
 // ============================================================
 // TOAST
 // ============================================================
@@ -156,15 +163,9 @@ async function loadMessages() {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Supabase loadMessages error:', error);
-      showToast('⚠️ Failed to load stars');
-      return [];
-    }
-    
+    if (error) throw error;
     return data || [];
   } catch (err) {
-    console.error('loadMessages error:', err);
     showToast('⚠️ Failed to load stars');
     return [];
   }
@@ -184,7 +185,6 @@ async function saveMessage(text, name, emotion) {
       user_id: state.sessionId,
       likes: 0,
       liked_by: []
-      // Note: is_mine is NOT in the stars table
     };
 
     const { data, error } = await supabase
@@ -193,16 +193,12 @@ async function saveMessage(text, name, emotion) {
       .select()
       .single();
 
-    if (error) {
-      console.error('Supabase insert error:', error);
-      throw error;
-    }
+    if (error) throw error;
     
     if (state.soundOn) playChime();
     showToast('✨ Star created! Your emotion is now in the galaxy.');
     return data;
   } catch (err) {
-    console.error('saveMessage error:', err);
     showToast('⚠️ Failed to save star');
     return null;
   }
@@ -226,7 +222,6 @@ async function updateMessage(starId, text) {
     
     return data;
   } catch (err) {
-    console.error('updateMessage error:', err);
     showToast('⚠️ Failed to update star');
     return null;
   }
@@ -246,7 +241,6 @@ async function deleteMessage(starId) {
     
     return true;
   } catch (err) {
-    console.error('deleteMessage error:', err);
     showToast('⚠️ Failed to delete star');
     return false;
   }
@@ -275,7 +269,6 @@ async function toggleLike(starId) {
     
     return data;
   } catch (err) {
-    console.error('toggleLike error:', err);
     showToast('⚠️ Failed to toggle like');
     return null;
   }
@@ -292,7 +285,6 @@ async function loadComments(starId) {
     if (error) throw error;
     return data || [];
   } catch (err) {
-    console.error('loadComments error:', err);
     return [];
   }
 }
@@ -304,7 +296,7 @@ async function saveComment(starId, text, name) {
       text: text.trim(),
       name: (name && name.trim()) ? name.trim() : 'Anonymous',
       user_id: state.sessionId,
-      is_mine: true // This column exists in the comments table
+      is_mine: true
     };
 
     const { data, error } = await supabase
@@ -316,7 +308,6 @@ async function saveComment(starId, text, name) {
     if (error) throw error;
     return data;
   } catch (err) {
-    console.error('saveComment error:', err);
     showToast('⚠️ Failed to save comment');
     return null;
   }
@@ -338,7 +329,6 @@ async function initializeApp() {
     }
   });
 
-  // Track latest timestamp for polling
   if (stars.length > 0) {
     state.lastKnownStarTimestamp = new Date(stars[0].created_at).getTime();
   } else {
@@ -350,7 +340,6 @@ async function initializeApp() {
   if (state.messages.length === 0) {
     landingScreen.classList.remove('hidden');
     hud.style.display = 'none';
-    showToast('✦ Welcome! Share your emotion to create your first star!');
   } else {
     landingScreen.classList.add('hidden');
     hud.style.display = 'flex';
@@ -400,47 +389,9 @@ const bloomPass = new UnrealBloomPass(
 composer.addPass(bloomPass);
 
 // ============================================================
-// BACKGROUND
+// BACKGROUND - No random particles, just dark background
 // ============================================================
-scene.fog = new THREE.FogExp2(0x000011, 0.0008);
-
-function createStarField() {
-  const count = 8000;
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-
-  for (let i = 0; i < count; i++) {
-    const r = 200 + Math.random() * 600;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.cos(phi) * 0.3;
-    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-
-    const c = new THREE.Color().setHSL(0.65 + Math.random() * 0.2, 0.3, 0.5 + Math.random() * 0.4);
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-  const mat = new THREE.PointsMaterial({
-    size: 0.8,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.8,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    sizeAttenuation: true,
-  });
-  const stars = new THREE.Points(geo, mat);
-  scene.add(stars);
-  return stars;
-}
-createStarField();
+scene.background = new THREE.Color(0x000011);
 
 // ============================================================
 // GALAXY CORE
@@ -947,7 +898,6 @@ async function initAudio() {
   try {
     audioCtx = new(window.AudioContext || window.webkitAudioContext)();
     soundInitialized = true;
-    // Resume context (needed for browsers with autoplay policy)
     if (audioCtx.state === 'suspended') {
       await audioCtx.resume().catch(() => {});
     }
@@ -959,11 +909,9 @@ async function initAudio() {
 
 function startBgMusic() {
   if (!state.soundOn) return;
-  // If already playing, just resume instead of restarting
   if (bgAudio) {
     if (bgAudio.paused) {
       bgAudio.play().catch(() => {
-        // If resume fails, reload and try again
         bgAudio = null;
         loadBgMusic(0);
       });
@@ -975,7 +923,6 @@ function startBgMusic() {
 
 function loadBgMusic(index) {
   if (index >= SOUND_FILES.length) {
-    console.warn('All background music files failed to load');
     return;
   }
   try {
@@ -983,7 +930,6 @@ function loadBgMusic(index) {
     bgAudio.loop = true;
     bgAudio.volume = 0.35;
     bgAudio.play().catch(() => {
-      // Try next file as fallback
       bgAudio = null;
       loadBgMusic(index + 1);
     });
@@ -998,14 +944,12 @@ function stopBgMusic() {
       bgAudio.pause();
       bgAudio.currentTime = 0;
     } catch {}
-    // Keep bgAudio reference so we can resume later (don't null it out)
   }
 }
 
 async function playChime() {
   if (!audioCtx || !state.soundOn) return;
   try {
-    // Resume context if suspended (some browsers suspend after inactivity)
     if (audioCtx.state === 'suspended') {
       await audioCtx.resume().catch(() => {});
     }
@@ -1022,9 +966,9 @@ async function playChime() {
     
     const gain = audioCtx.createGain();
     const gain2 = audioCtx.createGain();
-    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.setValueAtTime(0.15, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
-    gain2.gain.setValueAtTime(0.04, now);
+    gain2.gain.setValueAtTime(0.08, now);
     gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
     
     osc.connect(gain);
@@ -1036,9 +980,7 @@ async function playChime() {
     osc2.start(now);
     osc.stop(now + 0.8);
     osc2.stop(now + 0.5);
-  } catch (e) {
-    console.warn('Chime playback error:', e);
-  }
+  } catch (e) {}
 }
 
 async function playCommentChime() {
@@ -1064,14 +1006,11 @@ async function playCommentChime() {
     
     osc.start(now);
     osc.stop(now + 0.4);
-  } catch (e) {
-    console.warn('Comment chime playback error:', e);
-  }
+  } catch (e) {}
 }
 
 btnSound.addEventListener('click', () => {
   state.soundOn = !state.soundOn;
-  // Update only the span text inside the button, preserving the SVG icon
   const soundText = document.getElementById('sound-text');
   if (soundText) {
     soundText.textContent = state.soundOn ? 'Sound' : 'Mute';
@@ -1236,6 +1175,55 @@ btnRefresh.addEventListener('click', async () => {
 });
 
 // ============================================================
+// DELETE CONFIRM MODAL (SIMPLE & CLEAN)
+// ============================================================
+let pendingDeleteStarId = null;
+let pendingDeleteStarMsg = null;
+
+function showDeleteConfirm(msg) {
+  pendingDeleteStarId = msg.id;
+  pendingDeleteStarMsg = msg;
+  
+  deleteConfirmPreview.textContent = `"${msg.text.length > 80 ? msg.text.substring(0, 80) + '...' : msg.text}"`;
+  deleteConfirmModal.classList.add('visible');
+  deleteConfirmBackdrop.classList.add('visible');
+}
+
+function hideDeleteConfirm() {
+  deleteConfirmModal.classList.remove('visible');
+  deleteConfirmBackdrop.classList.remove('visible');
+  pendingDeleteStarId = null;
+  pendingDeleteStarMsg = null;
+}
+
+deleteConfirmCancel.addEventListener('click', hideDeleteConfirm);
+deleteConfirmBackdrop.addEventListener('click', hideDeleteConfirm);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && deleteConfirmModal.classList.contains('visible')) {
+    hideDeleteConfirm();
+  }
+});
+
+deleteConfirmDelete.addEventListener('click', async () => {
+  if (!pendingDeleteStarId) return;
+  
+  const msg = pendingDeleteStarMsg;
+  const success = await deleteMessage(msg.id);
+  
+  if (success) {
+    closeModal();
+    closeMyStars();
+    buildStars();
+    buildFilterPills();
+    renderMyStars();
+    showToast('💫 Star deleted from the galaxy');
+  }
+  
+  hideDeleteConfirm();
+});
+
+// ============================================================
 // MY STARS
 // ============================================================
 function openMyStars() {
@@ -1280,7 +1268,7 @@ function renderMyStars() {
       </div>
       <div class="mystar-item-actions">
         <button class="mystar-edit-btn" title="Edit">✎</button>
-        <button class="mystar-delete-btn" title="Delete">✕</button>
+        <button class="mystar-delete-btn" title="Delete">🗑️</button>
       </div>
     `;
 
@@ -1293,7 +1281,7 @@ function renderMyStars() {
     const deleteBtn = item.querySelector('.mystar-delete-btn');
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      deleteStar(msg);
+      showDeleteConfirm(msg);
     });
 
     item.addEventListener('click', () => {
@@ -1373,16 +1361,6 @@ function startEditStar(msg, itemEl) {
       body.querySelector('.mystar-cancel-btn').click();
     }
   });
-}
-
-async function deleteStar(msg) {
-  if (!confirm(`Delete this star?\n\n"${msg.text}"`)) return;
-  const success = await deleteMessage(msg.id);
-  if (success) {
-    buildStars();
-    renderMyStars();
-    showToast('✕ Star deleted');
-  }
 }
 
 btnMyStars.addEventListener('click', openMyStars);
@@ -1472,62 +1450,50 @@ function animate() {
 // REALTIME SUBSCRIPTIONS
 // ============================================================
 function setupRealtimeSubscriptions() {
-  // Subscribe to new stars (INSERT)
   supabase
     .channel('stars-realtime')
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'stars' },
       async (payload) => {
         const newStar = payload.new;
-        // Ignore own stars (already handled by form submit)
         if (newStar.user_id === state.sessionId) return;
 
-        // Check if star already exists in state (avoid duplicates)
         const exists = state.messages.some(m => m.id === newStar.id);
         if (exists) return;
 
-        // Add to state
         state.messages.unshift(newStar);
         if (newStar.user_id === state.sessionId) {
           state.myStarIds.add(newStar.id);
         }
 
-        // Rebuild galaxy and filters
         buildStars();
         buildFilterPills();
 
-        // Play chime for the new star
         if (state.soundOn) {
           await initAudio();
           playChime();
         }
 
-        // Toast notification
         const name = newStar.name || 'Someone';
         showToast(`✦ ${name} shared a ${newStar.emotion} emotion!`);
       }
     )
     .subscribe();
 
-  // Subscribe to new comments (INSERT)
   supabase
     .channel('comments-realtime')
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'comments' },
       async (payload) => {
         const newComment = payload.new;
-        // Ignore own comments (already handled by comment send)
         if (newComment.user_id === state.sessionId) return;
 
-        // Play comment chime
         if (state.soundOn) {
           await initAudio();
           playCommentChime();
         }
 
-        // If modal is open for this star, append the comment in real-time
         if (currentModalMsgId === newComment.star_id) {
-          // Avoid duplicates by checking if we already have this comment
           const exists = currentModalComments.some(c => c.id === newComment.id);
           if (!exists) {
             currentModalComments.push(newComment);
@@ -1535,7 +1501,6 @@ function setupRealtimeSubscriptions() {
           }
         }
 
-        // Toast notification
         const name = newComment.name || 'Someone';
         showToast(`💬 ${name} left a message on a star`);
       }
@@ -1544,10 +1509,9 @@ function setupRealtimeSubscriptions() {
 }
 
 // ============================================================
-// NEW STAR POLLING (Fallback when Realtime is not available)
+// NEW STAR POLLING
 // ============================================================
 function startNewStarPolling() {
-  // Clear any existing poll timer
   if (state.newStarPollTimer) {
     clearTimeout(state.newStarPollTimer);
   }
@@ -1558,7 +1522,6 @@ function startNewStarPolling() {
         state.lastKnownStarTimestamp = Date.now();
       }
 
-      // Query for stars created after the last known timestamp
       const afterDate = new Date(state.lastKnownStarTimestamp).toISOString();
       const { data: newStars, error } = await supabase
         .from('stars')
@@ -1566,13 +1529,9 @@ function startNewStarPolling() {
         .gt('created_at', afterDate)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.warn('Polling error:', error);
-        return;
-      }
+      if (error) throw error;
 
       if (newStars && newStars.length > 0) {
-        // Filter out stars we already know about
         const trulyNew = newStars.filter(ns => {
           const exists = state.messages.some(m => m.id === ns.id);
           return !exists;
@@ -1580,54 +1539,37 @@ function startNewStarPolling() {
 
         if (trulyNew.length > 0) {
           for (const newStar of trulyNew) {
-            // Skip own stars (already handled by form submit)
             if (newStar.user_id === state.sessionId) continue;
 
-            // Add to state
             state.messages.unshift(newStar);
             if (newStar.user_id === state.sessionId) {
               state.myStarIds.add(newStar.id);
             }
 
-            // Rebuild galaxy and filters
             buildStars();
             buildFilterPills();
 
-            // Play chime for the new star
             if (state.soundOn) {
               await initAudio();
               playChime();
             }
 
-            // Toast notification
             const name = newStar.name || 'Someone';
             showToast(`✦ ${name} shared a ${newStar.emotion} emotion!`);
           }
         }
 
-        // Update the latest timestamp
         const latest = new Date(newStars[0].created_at).getTime();
         if (latest > state.lastKnownStarTimestamp) {
-          state.lastKnownStarTimestamp = latest + 1; // +1ms to avoid re-fetching same star
+          state.lastKnownStarTimestamp = latest + 1;
         }
       }
-    } catch (err) {
-      console.warn('Polling error:', err);
-    }
+    } catch (err) {}
 
-    // Schedule next poll in 10 seconds
     state.newStarPollTimer = setTimeout(pollForNewStars, 10000);
   }
 
-  // Start polling after a short delay
   state.newStarPollTimer = setTimeout(pollForNewStars, 5000);
-}
-
-function stopNewStarPolling() {
-  if (state.newStarPollTimer) {
-    clearTimeout(state.newStarPollTimer);
-    state.newStarPollTimer = null;
-  }
 }
 
 // ============================================================
@@ -1635,11 +1577,7 @@ function stopNewStarPolling() {
 // ============================================================
 async function init() {
   await initializeApp();
-
-  // Set up real-time subscriptions
   setupRealtimeSubscriptions();
-
-  // Start polling fallback for new stars (detects stars even without Realtime enabled)
   startNewStarPolling();
 
   setTimeout(() => {

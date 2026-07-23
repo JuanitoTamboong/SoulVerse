@@ -151,6 +151,21 @@
   <!-- ====== TOAST ====== -->
   <div id="toast"></div>
 
+  <!-- ====== DELETE CONFIRM MODAL (replaces native confirm()) ====== -->
+  <div id="delete-confirm-modal">
+    <div class="backdrop" id="delete-confirm-backdrop"></div>
+    <div class="delete-confirm-card">
+      <div class="delete-confirm-icon">✕</div>
+      <div class="delete-confirm-title">Delete Star?</div>
+      <div class="delete-confirm-message" id="delete-confirm-message">Are you sure you want to permanently remove this star from the galaxy?</div>
+      <div class="delete-confirm-preview" id="delete-confirm-preview">—</div>
+      <div class="delete-confirm-actions">
+        <button class="delete-confirm-cancel-btn" id="delete-confirm-cancel">Cancel</button>
+        <button class="delete-confirm-delete-btn" id="delete-confirm-delete">✕ Delete Forever</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==============================
        THREE.JS IMPORT MAP
        ============================== -->
