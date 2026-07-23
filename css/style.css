@@ -987,6 +987,14 @@ a { color: inherit; text-decoration: none; }
   .hud-btn span {
     display: none; /* Hide text on very small screens, show only icons */
   }
+  /* Keep the Manage (My Stars) button label visible on mobile */
+  #btn-mystars span {
+    display: inline;
+  }
+  #btn-mystars {
+    background: rgba(124,58,237,0.25);
+    border-color: rgba(124,58,237,0.4);
+  }
 
   /* ===== LOADING SCREEN MOBILE FIXES ===== */
   #loading-screen {
