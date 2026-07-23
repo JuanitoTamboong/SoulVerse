@@ -862,50 +862,107 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ============================================================
-// RAYCASTER
+// RAYCASTER & EVENT HANDLERS (Desktop + Mobile)
 // ============================================================
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let hoveredStar = null;
+let touchStartPos = { x: 0, y: 0 };
+let isTouching = false;
 
-renderer.domElement.addEventListener('pointermove', (e) => {
+// Desktop click
+renderer.domElement.addEventListener('click', (e) => {
   pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  handleStarClick();
 });
 
-renderer.domElement.addEventListener('click', (e) => {
+// Mobile touch
+renderer.domElement.addEventListener('touchstart', (e) => {
+  const touch = e.touches[0];
+  touchStartPos.x = touch.clientX;
+  touchStartPos.y = touch.clientY;
+  isTouching = true;
+  pointer.x = (touch.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+}, { passive: true });
+
+renderer.domElement.addEventListener('touchmove', (e) => {
+  const touch = e.touches[0];
+  pointer.x = (touch.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+}, { passive: true });
+
+renderer.domElement.addEventListener('touchend', (e) => {
+  if (!isTouching) return;
+  isTouching = false;
+  const touch = e.changedTouches[0];
+  const dx = Math.abs(touch.clientX - touchStartPos.x);
+  const dy = Math.abs(touch.clientY - touchStartPos.y);
+  // Only handle as tap if not a drag (movement less than 15px)
+  if (dx < 15 && dy < 15) {
+    handleStarClick();
+  }
+}, { passive: true });
+
+// Hover (desktop only) - using pointermove for both mouse and touch
+renderer.domElement.addEventListener('pointermove', (e) => {
+  // Only update for mouse events, not touch
+  if (e.pointerType === 'mouse') {
+    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  }
+});
+
+function handleStarClick() {
   if (state.transitioning) return;
+  if (state.isExploring) {
+    stopExplore();
+  }
+  
   raycaster.setFromCamera(pointer, camera);
   const intersects = raycaster.intersectObjects(starGroup.children);
+  
   if (intersects.length > 0) {
     const hit = intersects[0].object;
     const msg = state.starDataMap.get(hit.uuid);
     if (msg) {
-      state.transitioning = true;
-      const targetPos = new THREE.Vector3().copy(hit.position);
-      const startPos = camera.position.clone();
-      const startTarget = controls.target.clone();
-      const endPos = targetPos.clone().add(new THREE.Vector3(0, 5, 20));
-      const endTarget = targetPos.clone();
-      let t = 0;
-      const duration = 60;
-
-      function animateCamera() {
-        t++;
-        const p = Math.min(t / duration, 1);
-        const ease = 1 - Math.pow(1 - p, 3);
-        camera.position.lerpVectors(startPos, endPos, ease);
-        controls.target.lerpVectors(startTarget, endTarget, ease);
-        controls.update();
-        if (p < 1) {
-          requestAnimationFrame(animateCamera);
-        } else {
-          state.transitioning = false;
-          openModal(msg);
-        }
-      }
-      animateCamera();
+      animateToStar(msg, hit);
     }
+  }
+}
+
+function animateToStar(msg, hit) {
+  state.transitioning = true;
+  const targetPos = new THREE.Vector3().copy(hit.position);
+  const startPos = camera.position.clone();
+  const startTarget = controls.target.clone();
+  const endPos = targetPos.clone().add(new THREE.Vector3(0, 5, 20));
+  const endTarget = targetPos.clone();
+  let t = 0;
+  const duration = 60;
+
+  function animateCamera() {
+    t++;
+    const p = Math.min(t / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    camera.position.lerpVectors(startPos, endPos, ease);
+    controls.target.lerpVectors(startTarget, endTarget, ease);
+    controls.update();
+    if (p < 1) {
+      requestAnimationFrame(animateCamera);
+    } else {
+      state.transitioning = false;
+      openModal(msg);
+    }
+  }
+  animateCamera();
+}
+
+// Also handle click on the canvas for the explore stop
+renderer.domElement.addEventListener('click', () => {
+  if (state.isExploring) {
+    stopExplore();
   }
 });
 
