@@ -1,102 +1,33 @@
-# Emotion Galaxy - Implementation Plan
+# Fix Plan: Loading Screen & Subtitle Mobile Responsiveness
 
-## Overview
-A visually stunning 3D web application where emotions become stars in a living galaxy. Built as a single-page app using Three.js, localStorage, and Web Audio API.
+## Information Gathered
 
-## File Structure
-```
-SoulVerse/
-├── index.html          # Main entry point (embeds all CSS & JS for portability)
-├── PLAN.md             # This file
-├── assets/             # (reserved for future image assets)
-└── sound/              # (reserved for future audio assets)
-```
+### Loading Screen Issues
+- **`#loading-screen`** uses `position: fixed; inset: 0;` with flexbox centering (`align-items: center; justify-content: center;`) — this is correct structurally.
+- **`.loading-star`** has a fixed `font-size: 4rem` (no responsive scaling) — on small mobile screens this can push content off-center or overflow horizontally.
+- **`.loading-text`** has `font-size: 1.2rem` and `letter-spacing: 0.3em` — on narrow screens, the large letter-spacing with the text "Igniting the SoulVerse..." could cause text to overflow, breaking centering.
 
-## Architecture
+### Landing Subtitle Issues
+- **`.landing-subtitle`** ("Where every feeling becomes a star") has `letter-spacing: 0.5em` which on mobile can make the text too wide, causing overflow or awkward wrapping.
+- The existing `@media (max-width: 640px)` rule reduces it to `letter-spacing: 0.3em` but this may still be too wide for very small screens (320px-375px).
+- `margin-bottom: 3rem` is large on mobile, creating excessive space before the form.
 
-### 1. Data Layer (localStorage)
-- **Key**: `emotionGalaxy_messages`
-- **Format**: Array of message objects:
-  ```js
-  {
-    id: string (uuid),
-    text: string,
-    name: string (optional, default "Anonymous"),
-    emotion: string (category),
-    timestamp: number (Date.now()),
-    likes: number,
-    x, y, z: number (galaxy coordinates)
-  }
-  ```
+## Plan
 
-### 2. Three.js 3D Scene
-- **Scene Setup**: Renderer, Scene, Camera (perspective), OrbitControls
-- **Galaxy**: Stars distributed in a spiral galaxy formation using mathematical formulas
-- **Star Sprites**: Canvas-generated circular sprites with glow (no external textures)
-- **Background**: Particle system for deep space (5000+ distant stars, nebulae colors)
-- **Post-processing**: UnrealBloomPass for bloom/glow effects
-- **Animations**: requestAnimationFrame loop with twinkling and floating motion
+### 1. Fix Loading Screen for Mobile
+- Add responsive font sizes using `clamp()` for `.loading-star` and `.loading-text`
+- Add a dedicated `@media (max-width: 480px)` rule for the loading screen to further reduce sizes and ensure centering
 
-### 3. UI Components
-- **Landing Screen**: 
-  - Animated starfield background
-  - Input field with placeholder cycling text (feeling/mind/express)
-  - Emotion selector (dropdown or emoji picker)
-  - Submit button with cosmic styling
-- **Galaxy View**:
-  - Full-screen Three.js canvas
-  - HUD overlay (minimal: search bar, filter, sound toggle, back button)
-  - Stars rendered at calculated positions
-- **Star Modal**:
-  - Glassmorphism card design
-  - Shows: message text, name, emotion, timestamp
-  - "Send Light" (like) button
-  - Close button
-- **Controls Panel**:
-  - Emotion filter buttons (color-coded)
-  - Search input
-  - "Random Explore" button
+### 2. Fix Landing Subtitle for Mobile
+- Add a `@media (max-width: 480px)` rule to further reduce `letter-spacing` on `.landing-subtitle`
+- Reduce `margin-bottom` on `.landing-subtitle` for small screens
 
-### 4. Emotion Categories & Colors
-| Emotion   | Color (Hex) |
-|-----------|-------------|
-| Happy     | #FFD700 (Gold) |
-| Sad       | #6A5ACD (Slate Blue) |
-| Angry     | #FF4500 (Red-Orange) |
-| Anxious   | #00CED1 (Dark Turquoise) |
-| Excited   | #FF69B4 (Hot Pink) |
-| Grateful  | #32CD32 (Lime Green) |
-| Hopeful   | #FFA500 (Orange) |
-| Lonely    | #C0C0C0 (Silver) |
-| Love      | #FF1493 (Deep Pink) |
-| Peaceful  | #87CEEB (Sky Blue) |
+## Files to Edit
+- `css/style.css` — Add/update responsive CSS rules
 
-### 5. Sound (Web Audio API)
-- **Ambient Drone**: Synthesized low-frequency oscillators with reverb
-- **Star Click Chime**: Soft sine wave ping with decay
-- **Twinkle Effect**: Subtle high-frequency bell tones at random intervals
-- **Toggle**: Sound on/off button in HUD
+## No Dependencies
+- No other files need changes
 
-### 6. Animations
-- **Star Twinkle**: Sine wave oscillation on sprite opacity + scale
-- **Floating**: Subtle positional sine wave offset per star (unique phase)
-- **New Star Birth**: Scale from 0 → 1 with brightness flash
-- **Camera Transition**: Smooth lerp when clicking a star
-- **Bloom Pulse**: Subtle intensity oscillation
-
-## Implementation Steps
-1. Create `index.html` with embedded CSS and JS
-2. Implement Three.js scene, camera, renderer, controls
-3. Create galaxy generation algorithm (spiral distribution)
-4. Implement star creation from stored messages
-5. Build landing screen with input form
-6. Build glassmorphism modal for star viewing
-7. Implement emotion categories with color mapping
-8. Add particle background system
-9. Implement bloom post-processing
-10. Add Web Audio ambient sounds
-11. Implement interaction (hover glow, click zoom)
-12. Add UI controls (filters, search, random explore)
-13. Responsive design adjustments
-14. Polish and testing
+## Follow-up Steps
+- Test by opening `index.html` in a browser and resizing to mobile widths (320px-480px)
 
