@@ -81,6 +81,8 @@ const state = {
   isNewUser: true,
   loading: false,
   sessionId: null,
+  lastKnownStarTimestamp: null,
+  newStarPollTimer: null,
 };
 
 // Generate session ID
@@ -335,6 +337,13 @@ async function initializeApp() {
       state.myStarIds.add(msg.id);
     }
   });
+
+  // Track latest timestamp for polling
+  if (stars.length > 0) {
+    state.lastKnownStarTimestamp = new Date(stars[0].created_at).getTime();
+  } else {
+    state.lastKnownStarTimestamp = Date.now();
+  }
 
   state.loading = false;
   
@@ -1535,6 +1544,93 @@ function setupRealtimeSubscriptions() {
 }
 
 // ============================================================
+// NEW STAR POLLING (Fallback when Realtime is not available)
+// ============================================================
+function startNewStarPolling() {
+  // Clear any existing poll timer
+  if (state.newStarPollTimer) {
+    clearTimeout(state.newStarPollTimer);
+  }
+
+  async function pollForNewStars() {
+    try {
+      if (!state.lastKnownStarTimestamp) {
+        state.lastKnownStarTimestamp = Date.now();
+      }
+
+      // Query for stars created after the last known timestamp
+      const afterDate = new Date(state.lastKnownStarTimestamp).toISOString();
+      const { data: newStars, error } = await supabase
+        .from('stars')
+        .select('*')
+        .gt('created_at', afterDate)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Polling error:', error);
+        return;
+      }
+
+      if (newStars && newStars.length > 0) {
+        // Filter out stars we already know about
+        const trulyNew = newStars.filter(ns => {
+          const exists = state.messages.some(m => m.id === ns.id);
+          return !exists;
+        });
+
+        if (trulyNew.length > 0) {
+          for (const newStar of trulyNew) {
+            // Skip own stars (already handled by form submit)
+            if (newStar.user_id === state.sessionId) continue;
+
+            // Add to state
+            state.messages.unshift(newStar);
+            if (newStar.user_id === state.sessionId) {
+              state.myStarIds.add(newStar.id);
+            }
+
+            // Rebuild galaxy and filters
+            buildStars();
+            buildFilterPills();
+
+            // Play chime for the new star
+            if (state.soundOn) {
+              await initAudio();
+              playChime();
+            }
+
+            // Toast notification
+            const name = newStar.name || 'Someone';
+            showToast(`✦ ${name} shared a ${newStar.emotion} emotion!`);
+          }
+        }
+
+        // Update the latest timestamp
+        const latest = new Date(newStars[0].created_at).getTime();
+        if (latest > state.lastKnownStarTimestamp) {
+          state.lastKnownStarTimestamp = latest + 1; // +1ms to avoid re-fetching same star
+        }
+      }
+    } catch (err) {
+      console.warn('Polling error:', err);
+    }
+
+    // Schedule next poll in 10 seconds
+    state.newStarPollTimer = setTimeout(pollForNewStars, 10000);
+  }
+
+  // Start polling after a short delay
+  state.newStarPollTimer = setTimeout(pollForNewStars, 5000);
+}
+
+function stopNewStarPolling() {
+  if (state.newStarPollTimer) {
+    clearTimeout(state.newStarPollTimer);
+    state.newStarPollTimer = null;
+  }
+}
+
+// ============================================================
 // INIT
 // ============================================================
 async function init() {
@@ -1542,6 +1638,9 @@ async function init() {
 
   // Set up real-time subscriptions
   setupRealtimeSubscriptions();
+
+  // Start polling fallback for new stars (detects stars even without Realtime enabled)
+  startNewStarPolling();
 
   setTimeout(() => {
     loadingScreen.classList.add('hidden');
