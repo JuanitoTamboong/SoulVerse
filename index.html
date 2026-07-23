@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SoulVerse Emotion Galaxy</title>
-  <link rel="stylesheet" href="css/style.css">
- <link rel="web icon" href="./assets/SoulVerse.png">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SoulVerse · Emotion Galaxy</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="web icon" href="./assets/SoulVerse.png" />
 </head>
 <body>
 
@@ -23,12 +23,12 @@
     <form class="landing-form" id="emotion-form">
       <div class="input-wrapper">
         <input class="landing-input" id="emotion-input" type="text"
-               placeholder="How are you feeling today?" autocomplete="off" required>
+               placeholder="How are you feeling today?" autocomplete="off" required />
       </div>
 
       <div class="landing-row">
         <select class="emotion-select" id="emotion-category" title="Select your current emotion category">
-          <option value="General">✨ General</option>
+          <option value="General">✦ General</option>
           <option value="Happy">😊 Happy</option>
           <option value="Sad">😢 Sad</option>
           <option value="Angry">😠 Angry</option>
@@ -37,12 +37,12 @@
           <option value="Grateful">🙏 Grateful</option>
           <option value="Hopeful">🌟 Hopeful</option>
           <option value="Lonely">💔 Lonely</option>
-          <option value="Love">💖 Love</option>
-          <option value="Peaceful">☮️ Peaceful</option>
+          <option value="Love">❤️ Love</option>
+          <option value="Peaceful">🕊️ Peaceful</option>
         </select>
 
         <input class="name-input" id="name-input" type="text"
-               placeholder="Anonymous (optional)">
+               placeholder="Anonymous (optional)" />
       </div>
 
       <button class="submit-btn" type="submit">
@@ -56,15 +56,49 @@
   <!-- ====== GALAXY VIEW (Three.js canvas injected here) ====== -->
   <div id="galaxy-view"></div>
 
-  <!-- ====== HUD OVERLAY ====== -->
+  <!-- ====== HUD OVERLAY - UPDATED WITH MODERN SVG ICONS ====== -->
   <div id="hud" style="display:none;">
-    <button class="hud-btn" id="btn-back">← Back</button>
-    <button class="hud-btn" id="btn-sound">🔊 Sound</button>
-    <button class="hud-btn" id="btn-explore">🎲 Explore</button>
-    <button class="hud-btn" id="btn-mystars">⭐ Manage</button>
-    <button class="hud-btn" id="btn-refresh">🔄 Refresh</button>
+    <button class="hud-btn" id="btn-back">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+      Back
+    </button>
+    
+    <button class="hud-btn" id="btn-sound">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+      </svg>
+      <span class="btn-text">Sound</span>
+    </button>
+    
+    <button class="hud-btn" id="btn-explore">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 2v20M2 12h20"/>
+        <path d="M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07"/>
+      </svg>
+      Explore
+    </button>
+    
+    <button class="hud-btn" id="btn-mystars">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+      Manage
+    </button>
+    
+    <button class="hud-btn" id="btn-refresh">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 4v6h-6"/>
+        <path d="M1 20v-6h6"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      Refresh
+    </button>
 
-    <input class="hud-search" id="search-input" type="text" placeholder="Search stars...">
+    <input class="hud-search" id="search-input" type="text" placeholder="Search stars..." />
 
     <div class="filter-pills" id="filter-pills"></div>
 
@@ -85,7 +119,7 @@
           <div class="comment-empty">No messages yet. Be the first to leave a kind thought!</div>
         </div>
         <div class="comment-form">
-          <input class="comment-input" id="comment-input" type="text" placeholder="Leave a message..." autocomplete="off">
+          <input class="comment-input" id="comment-input" type="text" placeholder="Leave a message..." autocomplete="off" />
           <button class="comment-send-btn" id="comment-send-btn">Send</button>
         </div>
       </div>
