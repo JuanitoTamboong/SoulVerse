@@ -933,14 +933,14 @@ let bgAudio = null;
 let soundInitialized = false;
 const SOUND_FILES = ['sound/sv-sound.mp3', 'sound/sv2-sound.mp3'];
 
-function initAudio() {
+async function initAudio() {
   if (soundInitialized) return;
   try {
     audioCtx = new(window.AudioContext || window.webkitAudioContext)();
     soundInitialized = true;
     // Resume context (needed for browsers with autoplay policy)
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume().catch(() => {});
+      await audioCtx.resume().catch(() => {});
     }
     startBgMusic();
   } catch (e) {
@@ -993,12 +993,12 @@ function stopBgMusic() {
   }
 }
 
-function playChime() {
+async function playChime() {
   if (!audioCtx || !state.soundOn) return;
   try {
     // Resume context if suspended (some browsers suspend after inactivity)
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume().catch(() => {});
+      await audioCtx.resume().catch(() => {});
     }
     const osc = audioCtx.createOscillator();
     const osc2 = audioCtx.createOscillator();
@@ -1138,7 +1138,7 @@ form.addEventListener('submit', async (e) => {
   const name = nameInput.value.trim();
   const emotion = emotionCat.value;
 
-  initAudio();
+  await initAudio();
 
   const newStar = await saveMessage(text, name, emotion);
   if (newStar) {
@@ -1154,10 +1154,6 @@ form.addEventListener('submit', async (e) => {
 
     input.value = '';
     nameInput.value = '';
-
-    if (state.messages.length === 1) {
-      setTimeout(() => playChime(), 500);
-    }
   }
 });
 

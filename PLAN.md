@@ -24,10 +24,18 @@
 
 ## Files to Edit
 - `css/style.css` — Add/update responsive CSS rules
+- `js/script.js` — Fix sound not triggering on form submit
+
+## Sound Fix Details
+- Made `initAudio()` async with proper `await audioCtx.resume()` — ensures AudioContext is fully running before creating oscillators
+- Made `playChime()` async with `await audioCtx.resume()` — fixes the suspended AudioContext issue on mobile browsers
+- Removed duplicate `setTimeout(() => playChime(), 500)` in form submit handler — `saveMessage()` already calls `playChime()`
+- Form submit now `await initAudio()` before calling `saveMessage()` — ensures audio context is fully initialized before the chime fires
 
 ## No Dependencies
 - No other files need changes
 
 ## Follow-up Steps
 - Test by opening `index.html` in a browser and resizing to mobile widths (320px-480px)
+- Test sound by clicking "Release into the Universe" — should hear a chime
 
