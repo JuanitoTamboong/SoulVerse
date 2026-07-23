@@ -931,57 +931,117 @@ renderer.domElement.addEventListener('click', (e) => {
 let audioCtx = null;
 let bgAudio = null;
 let soundInitialized = false;
+const SOUND_FILES = ['sound/sv-sound.mp3', 'sound/sv2-sound.mp3'];
 
 function initAudio() {
   if (soundInitialized) return;
   try {
     audioCtx = new(window.AudioContext || window.webkitAudioContext)();
     soundInitialized = true;
+    // Resume context (needed for browsers with autoplay policy)
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
     startBgMusic();
-  } catch {}
+  } catch (e) {
+    console.warn('Audio context creation failed:', e);
+  }
 }
 
 function startBgMusic() {
   if (!state.soundOn) return;
-  stopBgMusic();
+  // If already playing, just resume instead of restarting
+  if (bgAudio) {
+    if (bgAudio.paused) {
+      bgAudio.play().catch(() => {
+        // If resume fails, reload and try again
+        bgAudio = null;
+        loadBgMusic(0);
+      });
+    }
+    return;
+  }
+  loadBgMusic(0);
+}
+
+function loadBgMusic(index) {
+  if (index >= SOUND_FILES.length) {
+    console.warn('All background music files failed to load');
+    return;
+  }
   try {
-    bgAudio = new Audio('sound/sv-sound.mp3');
+    bgAudio = new Audio(SOUND_FILES[index]);
     bgAudio.loop = true;
     bgAudio.volume = 0.35;
-    bgAudio.play().catch(() => {});
-  } catch {}
+    bgAudio.play().catch(() => {
+      // Try next file as fallback
+      bgAudio = null;
+      loadBgMusic(index + 1);
+    });
+  } catch {
+    loadBgMusic(index + 1);
+  }
 }
 
 function stopBgMusic() {
   if (bgAudio) {
-    try { bgAudio.pause();
-      bgAudio.currentTime = 0; } catch {}
-    bgAudio = null;
+    try {
+      bgAudio.pause();
+      bgAudio.currentTime = 0;
+    } catch {}
+    // Keep bgAudio reference so we can resume later (don't null it out)
   }
 }
 
 function playChime() {
   if (!audioCtx || !state.soundOn) return;
   try {
+    // Resume context if suspended (some browsers suspend after inactivity)
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
     const osc = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(880 + Math.random() * 440, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+    osc2.type = 'sine';
+    
+    const now = audioCtx.currentTime;
+    osc.frequency.setValueAtTime(880 + Math.random() * 440, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+    osc2.frequency.setValueAtTime(1320 + Math.random() * 220, now);
+    osc2.frequency.exponentialRampToValueAtTime(1800, now + 0.08);
+    
     const gain = audioCtx.createGain();
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+    const gain2 = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+    gain2.gain.setValueAtTime(0.04, now);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    
     osc.connect(gain);
+    osc2.connect(gain2);
     gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.8);
-  } catch {}
+    gain2.connect(audioCtx.destination);
+    
+    osc.start(now);
+    osc2.start(now);
+    osc.stop(now + 0.8);
+    osc2.stop(now + 0.5);
+  } catch (e) {
+    console.warn('Chime playback error:', e);
+  }
 }
 
 btnSound.addEventListener('click', () => {
   state.soundOn = !state.soundOn;
-  btnSound.textContent = state.soundOn ? '🔊 Sound' : '🔇 Mute';
+  // Update only the span text inside the button, preserving the SVG icon
+  const soundText = document.getElementById('sound-text');
+  if (soundText) {
+    soundText.textContent = state.soundOn ? 'Sound' : 'Mute';
+  }
   if (state.soundOn) {
     if (audioCtx) startBgMusic();
+    else initAudio();
   } else {
     stopBgMusic();
   }
