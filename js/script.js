@@ -361,7 +361,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.toneMappingExposure = 1.5;
 galaxyView.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -374,22 +374,23 @@ controls.autoRotateSpeed = 0.35;
 controls.target.set(0, 0, 0);
 
 // ============================================================
-// POST-PROCESSING
+// POST-PROCESSING — ENHANCED BLOOM FOR GLOWING STARS
 // ============================================================
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 
+// Enhanced bloom for stronger glow
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  1.2,
-  0.6,
-  0.1
+  1.8,  // intensity - increased for more glow
+  0.8,  // radius - increased for wider glow spread
+  0.15  // threshold - lower to catch more brightness
 );
 composer.addPass(bloomPass);
 
 // ============================================================
-// BACKGROUND - No random particles, just dark background
+// BACKGROUND
 // ============================================================
 scene.background = new THREE.Color(0x000011);
 
@@ -435,12 +436,12 @@ function createGalaxyCore() {
 createGalaxyCore();
 
 // ============================================================
-// STAR TEXTURES
+// STAR TEXTURES — ENHANCED FOR GLOWING EFFECT
 // ============================================================
 const textureCache = new Map();
 const userTextureCache = new Map();
 
-function createStarTexture(colorHex, size = 128) {
+function createStarTexture(colorHex, size = 256) {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -451,66 +452,19 @@ function createStarTexture(colorHex, size = 128) {
   const cy = size / 2;
   const maxR = size / 2;
 
+  // Brighter, larger glow with more spread
   const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
   grad.addColorStop(0, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},1)`);
-  grad.addColorStop(0.15, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.9)`);
-  grad.addColorStop(0.4, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.5)`);
-  grad.addColorStop(0.7, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.2)`);
+  grad.addColorStop(0.1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.95)`);
+  grad.addColorStop(0.3, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.7)`);
+  grad.addColorStop(0.6, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.35)`);
+  grad.addColorStop(0.85, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.1)`);
   grad.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
 
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.25);
-  coreGrad.addColorStop(0, '#ffffff');
-  coreGrad.addColorStop(0.3, '#ffffff');
-  coreGrad.addColorStop(0.6, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.95)`);
-  coreGrad.addColorStop(1, 'transparent');
-  ctx.fillStyle = coreGrad;
-  ctx.fillRect(0, 0, size, size);
-
-  ctx.globalCompositeOperation = 'screen';
-  for (let i = 0; i < 4; i++) {
-    const angle = (i / 4) * Math.PI;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle);
-    const g = ctx.createLinearGradient(0, -maxR * 0.9, 0, maxR * 0.9);
-    g.addColorStop(0, `rgba(255,255,255,0.4)`);
-    g.addColorStop(0.2, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.4)`);
-    g.addColorStop(0.5, `rgba(255,255,255,0.15)`);
-    g.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
-    ctx.fillStyle = g;
-    ctx.fillRect(-2, -maxR * 0.9, 4, maxR * 1.8);
-    ctx.restore();
-  }
-
-  return new THREE.CanvasTexture(canvas);
-}
-
-function createUserStarTexture(colorHex, size = 192) {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-
-  const color = new THREE.Color(colorHex);
-  const cx = size / 2;
-  const cy = size / 2;
-  const maxR = size / 2;
-
-  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
-  grad.addColorStop(0, `rgba(255,255,255,1)`);
-  grad.addColorStop(0.05, `rgba(255,255,255,1)`);
-  grad.addColorStop(0.15, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},1)`);
-  grad.addColorStop(0.35, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.8)`);
-  grad.addColorStop(0.6, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.4)`);
-  grad.addColorStop(0.8, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.15)`);
-  grad.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
-
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
-
+  // Bright core
   const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.3);
   coreGrad.addColorStop(0, '#ffffff');
   coreGrad.addColorStop(0.2, '#ffffff');
@@ -519,16 +473,80 @@ function createUserStarTexture(colorHex, size = 192) {
   ctx.fillStyle = coreGrad;
   ctx.fillRect(0, 0, size, size);
 
+  // Light rays for extra visibility
   ctx.globalCompositeOperation = 'screen';
-  for (let i = 0; i < 4; i++) {
-    const angle = (i / 4) * Math.PI;
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    const g = ctx.createLinearGradient(0, -maxR * 0.9, 0, maxR * 0.9);
+    g.addColorStop(0, `rgba(255,255,255,0.5)`);
+    g.addColorStop(0.15, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.4)`);
+    g.addColorStop(0.4, `rgba(255,255,255,0.2)`);
+    g.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(-2, -maxR * 0.9, 4, maxR * 1.8);
+    ctx.restore();
+  }
+
+  // Outer glow ring
+  ctx.globalCompositeOperation = 'screen';
+  const ringGrad = ctx.createRadialGradient(cx, cy, maxR * 0.3, cx, cy, maxR);
+  ringGrad.addColorStop(0, 'transparent');
+  ringGrad.addColorStop(0.5, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.15)`);
+  ringGrad.addColorStop(0.8, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.3)`);
+  ringGrad.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.1)`);
+  ctx.fillStyle = ringGrad;
+  ctx.fillRect(0, 0, size, size);
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+function createUserStarTexture(colorHex, size = 256) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const color = new THREE.Color(colorHex);
+  const cx = size / 2;
+  const cy = size / 2;
+  const maxR = size / 2;
+
+  // Extra bright glow for user stars
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+  grad.addColorStop(0, `rgba(255,255,255,1)`);
+  grad.addColorStop(0.05, `rgba(255,255,255,1)`);
+  grad.addColorStop(0.15, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},1)`);
+  grad.addColorStop(0.35, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.8)`);
+  grad.addColorStop(0.6, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.5)`);
+  grad.addColorStop(0.8, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.2)`);
+  grad.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Bright white core
+  const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.35);
+  coreGrad.addColorStop(0, '#ffffff');
+  coreGrad.addColorStop(0.15, '#ffffff');
+  coreGrad.addColorStop(0.4, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.95)`);
+  coreGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = coreGrad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Extra light rays
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
     const g = ctx.createLinearGradient(0, -maxR * 0.95, 0, maxR * 0.95);
-    g.addColorStop(0, `rgba(255,255,255,0.7)`);
+    g.addColorStop(0, `rgba(255,255,255,0.8)`);
     g.addColorStop(0.1, `rgba(255,255,255,0.6)`);
-    g.addColorStop(0.25, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.5)`);
+    g.addColorStop(0.2, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.5)`);
     g.addColorStop(0.5, `rgba(255,255,255,0.2)`);
     g.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0)`);
     ctx.fillStyle = g;
@@ -536,14 +554,15 @@ function createUserStarTexture(colorHex, size = 192) {
     ctx.restore();
   }
 
+  // Secondary rays
   ctx.globalCompositeOperation = 'screen';
-  for (let i = 0; i < 4; i++) {
-    const angle = (i / 4) * Math.PI + Math.PI / 4;
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI + Math.PI / 8;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
     const g = ctx.createLinearGradient(0, -maxR * 0.6, 0, maxR * 0.6);
-    g.addColorStop(0, `rgba(255,255,255,0.35)`);
+    g.addColorStop(0, `rgba(255,255,255,0.4)`);
     g.addColorStop(0.3, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.2)`);
     g.addColorStop(1, 'transparent');
     ctx.fillStyle = g;
@@ -551,11 +570,13 @@ function createUserStarTexture(colorHex, size = 192) {
     ctx.restore();
   }
 
+  // Outer glow ring
   ctx.globalCompositeOperation = 'screen';
-  const ringGrad = ctx.createRadialGradient(cx, cy, maxR * 0.5, cx, cy, maxR);
+  const ringGrad = ctx.createRadialGradient(cx, cy, maxR * 0.4, cx, cy, maxR);
   ringGrad.addColorStop(0, 'transparent');
-  ringGrad.addColorStop(0.7, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.1)`);
-  ringGrad.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.3)`);
+  ringGrad.addColorStop(0.5, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.15)`);
+  ringGrad.addColorStop(0.75, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.35)`);
+  ringGrad.addColorStop(1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.1)`);
   ctx.fillStyle = ringGrad;
   ctx.fillRect(0, 0, size, size);
 
@@ -579,7 +600,7 @@ function getUserStarTexture(emotion) {
 }
 
 // ============================================================
-// BUILD STARS
+// BUILD STARS — LARGER AND MORE GLOWING
 // ============================================================
 let starGroup = new THREE.Group();
 scene.add(starGroup);
@@ -633,12 +654,15 @@ function buildStars() {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       transparent: true,
-      opacity: isMyStar ? 1.0 : 0.9,
+      opacity: 1.0,
     });
     const sprite = new THREE.Sprite(mat);
+    
+    // INCREASED STAR SIZES — MUCH LARGER AND MORE VISIBLE
     const baseScale = isMyStar ?
-      3.5 + Math.random() * 2.0 :
-      1.2 + Math.random() * 1.2;
+      6.0 + Math.random() * 3.0 :
+      3.5 + Math.random() * 2.5;
+    
     sprite.scale.set(baseScale, baseScale, 1);
     sprite.position.set(msg._pos.x, msg._pos.y, msg._pos.z);
     sprite.userData = { msgId: msg.id, baseScale, phase: Math.random() * Math.PI * 2, isMyStar };
@@ -1380,7 +1404,7 @@ window.addEventListener('resize', () => {
 });
 
 // ============================================================
-// ANIMATION LOOP
+// ANIMATION LOOP — ENHANCED GLOWING EFFECTS
 // ============================================================
 function animate() {
   requestAnimationFrame(animate);
@@ -1391,35 +1415,27 @@ function animate() {
     const msg = state.starDataMap.get(sprite.uuid);
     const isMyStar = ud.isMyStar && msg;
 
-    if (isMyStar) {
-      const floatY = Math.sin(state.animTime * 1.2 + ud.phase) * 2.0;
-      if (msg && msg._pos) {
-        sprite.position.y = msg._pos.y + floatY;
-      }
-      const pulse = 0.85 + 0.15 * Math.sin(state.animTime * 3 + ud.phase);
-      sprite.material.opacity = pulse;
+    // Enhanced pulsing for more dynamic glow
+    const pulseSpeed = isMyStar ? 2.0 : 1.5;
+    const pulseAmount = isMyStar ? 0.25 : 0.2;
+    const basePulse = 1.0 + pulseAmount * Math.sin(state.animTime * pulseSpeed + ud.phase);
+    
+    // Float motion
+    const floatSpeed = isMyStar ? 1.0 : 0.6;
+    const floatAmount = isMyStar ? 2.0 : 0.6;
+    if (msg && msg._pos) {
+      sprite.position.y = msg._pos.y + Math.sin(state.animTime * floatSpeed + ud.phase) * floatAmount;
+    }
 
-      if (hoveredStar === sprite) {
-        sprite.scale.setScalar(ud.baseScale * 2.5);
-        sprite.material.opacity = 1;
-      } else {
-        const targetScale = ud.baseScale * (0.85 + 0.15 * Math.sin(state.animTime * 4 + ud.phase));
-        sprite.scale.setScalar(targetScale);
-      }
+    // Scale with pulse for "breathing" glow effect
+    if (hoveredStar === sprite) {
+      sprite.scale.setScalar(ud.baseScale * 2.8);
+      sprite.material.opacity = 1.0;
     } else {
-      const twinkle = 0.7 + 0.3 * Math.sin(state.animTime * 2 + ud.phase);
-      sprite.material.opacity = twinkle * 0.9;
-      const floatY = Math.sin(state.animTime * 0.8 + ud.phase) * 0.4;
-      if (msg && msg._pos) {
-        sprite.position.y = msg._pos.y + floatY;
-      }
-      if (hoveredStar === sprite) {
-        sprite.scale.setScalar(ud.baseScale * 2.0);
-        sprite.material.opacity = 1;
-      } else {
-        const targetScale = ud.baseScale * (0.9 + 0.1 * Math.sin(state.animTime * 3 + ud.phase));
-        sprite.scale.setScalar(targetScale);
-      }
+      const targetScale = ud.baseScale * (0.9 + 0.15 * Math.sin(state.animTime * 3 + ud.phase));
+      sprite.scale.setScalar(targetScale);
+      // Opacity varies slightly for twinkle effect
+      sprite.material.opacity = 0.85 + 0.15 * Math.sin(state.animTime * 2.5 + ud.phase);
     }
   });
 
@@ -1573,12 +1589,39 @@ function startNewStarPolling() {
 }
 
 // ============================================================
+// SUPPORT DEVELOPER TOGGLE
+// ============================================================
+function setupSupportToggle() {
+  const supportToggle = document.getElementById('support-toggle');
+  const supportContent = document.getElementById('support-content');
+  const supportArrow = document.querySelector('.support-toggle .arrow');
+
+  if (supportToggle && supportContent) {
+    let isOpen = false;
+    
+    supportToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isOpen = !isOpen;
+      
+      if (isOpen) {
+        supportContent.classList.add('visible');
+        if (supportArrow) supportArrow.classList.add('open');
+      } else {
+        supportContent.classList.remove('visible');
+        if (supportArrow) supportArrow.classList.remove('open');
+      }
+    });
+  }
+}
+
+// ============================================================
 // INIT
 // ============================================================
 async function init() {
   await initializeApp();
   setupRealtimeSubscriptions();
   startNewStarPolling();
+  setupSupportToggle();
 
   setTimeout(() => {
     loadingScreen.classList.add('hidden');

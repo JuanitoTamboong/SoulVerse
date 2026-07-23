@@ -211,6 +211,76 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ==============================
+   SUPPORT DEVELOPER SECTION (Simplified - links to separate page)
+   ============================== */
+.support-section {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem 1.5rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  max-width: 560px;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.support-section:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.1);
+}
+
+.support-toggle {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.support-toggle:hover {
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.05);
+}
+
+.support-toggle .heart {
+  color: #ff6b6b;
+  display: inline-block;
+  animation: heartBeat 1.5s ease-in-out infinite;
+}
+
+@keyframes heartBeat {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.15); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.1); }
+  70% { transform: scale(1); }
+}
+
+.support-toggle .arrow {
+  transition: transform 0.3s ease;
+  display: inline-block;
+}
+
+.support-toggle .arrow.open {
+  transform: rotate(180deg);
+}
+
+/* ==============================
    GALAXY VIEW (HUD)
    ============================== */
 #galaxy-view {
