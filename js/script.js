@@ -61,6 +61,20 @@ const GALAXY_RADIUS = 180;
 const GALAXY_THICKNESS = 20;
 
 // ============================================================
+// FALLING STARS CONFIG
+// ============================================================
+const FALLING_STAR_CONFIG = {
+  spawnMinInterval: 2000,    // ms
+  spawnMaxInterval: 5000,    // ms
+  lifetime: 3.5,             // seconds before fully faded
+  speed: 2.5,               // units per frame at 60fps
+  trailLength: 18,          // number of trail particles
+  headSize: 4.0,            // sprite scale for the head
+  trailSize: 1.2,           // sprite scale for trail dots
+  spreadAngle: 0.15,        // radians of spread from main direction
+};
+
+// ============================================================
 // STATE
 // ============================================================
 const state = {
@@ -611,10 +625,223 @@ function getUserStarTexture(emotion) {
 }
 
 // ============================================================
+// FALLING STAR TEXTURE
+// ============================================================
+let fallingStarHeadTexture = null;
+let fallingStarTrailTexture = null;
+
+function createFallingStarTextures() {
+  // Head — bright white elongated glow
+  const headCanvas = document.createElement('canvas');
+  headCanvas.width = 128;
+  headCanvas.height = 128;
+  const hCtx = headCanvas.getContext('2d');
+  const hc = 64;
+  const hGrad = hCtx.createRadialGradient(hc, hc, 0, hc, hc, 64);
+  hGrad.addColorStop(0, 'rgba(255,255,255,1)');
+  hGrad.addColorStop(0.15, 'rgba(255,255,255,1)');
+  hGrad.addColorStop(0.3, 'rgba(255,255,255,0.85)');
+  hGrad.addColorStop(0.6, 'rgba(200,220,255,0.4)');
+  hGrad.addColorStop(1, 'rgba(200,220,255,0)');
+  hCtx.fillStyle = hGrad;
+  hCtx.fillRect(0, 0, 128, 128);
+  // Extra bright core
+  const hCore = hCtx.createRadialGradient(hc, hc, 0, hc, hc, 20);
+  hCore.addColorStop(0, 'rgba(255,255,255,1)');
+  hCore.addColorStop(0.5, 'rgba(200,220,255,0.8)');
+  hCore.addColorStop(1, 'transparent');
+  hCtx.fillStyle = hCore;
+  hCtx.fillRect(0, 0, 128, 128);
+  // Cross light rays
+  hCtx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI;
+    hCtx.save();
+    hCtx.translate(hc, hc);
+    hCtx.rotate(angle);
+    const g = hCtx.createLinearGradient(0, -60, 0, 60);
+    g.addColorStop(0, 'rgba(255,255,255,0.6)');
+    g.addColorStop(0.4, 'rgba(200,220,255,0.3)');
+    g.addColorStop(1, 'transparent');
+    hCtx.fillStyle = g;
+    hCtx.fillRect(-2, -60, 4, 120);
+    hCtx.restore();
+  }
+  fallingStarHeadTexture = new THREE.CanvasTexture(headCanvas);
+
+  // Trail — soft glowing dot
+  const trailCanvas = document.createElement('canvas');
+  trailCanvas.width = 64;
+  trailCanvas.height = 64;
+  const tCtx = trailCanvas.getContext('2d');
+  const tc = 32;
+  const tGrad = tCtx.createRadialGradient(tc, tc, 0, tc, tc, 32);
+  tGrad.addColorStop(0, 'rgba(255,255,255,0.9)');
+  tGrad.addColorStop(0.2, 'rgba(200,220,255,0.6)');
+  tGrad.addColorStop(0.5, 'rgba(150,180,255,0.25)');
+  tGrad.addColorStop(1, 'rgba(150,180,255,0)');
+  tCtx.fillStyle = tGrad;
+  tCtx.fillRect(0, 0, 64, 64);
+  fallingStarTrailTexture = new THREE.CanvasTexture(trailCanvas);
+}
+
+// ============================================================
 // BUILD STARS — LARGER AND MORE GLOWING
 // ============================================================
 let starGroup = new THREE.Group();
 scene.add(starGroup);
+
+// ============================================================
+// FALLING STARS SYSTEM
+// ============================================================
+let fallingStarGroup = new THREE.Group();
+scene.add(fallingStarGroup);
+let activeFallingStars = [];
+let fallingStarSpawnTimer = null;
+
+function spawnFallingStar() {
+  const cfg = FALLING_STAR_CONFIG;
+
+  // Choose a random direction across the sky dome
+  const angleXY = Math.random() * Math.PI * 2;
+  const startRadius = 100 + Math.random() * 150;
+  const heightOffset = (Math.random() - 0.5) * 100;
+
+  const startPos = new THREE.Vector3(
+    Math.cos(angleXY) * startRadius,
+    50 + Math.random() * 60 + heightOffset * 0.3,
+    Math.sin(angleXY) * startRadius
+  );
+
+  // Direction: arc downwards and slightly inward toward galaxy
+  const dir = new THREE.Vector3(
+    -startPos.x * 0.3 + (Math.random() - 0.5) * 20,
+    -(30 + Math.random() * 40),
+    -startPos.z * 0.3 + (Math.random() - 0.5) * 20
+  ).normalize();
+
+  // Create the group for this falling star
+  const group = new THREE.Group();
+  group.position.copy(startPos);
+
+  // Head sprite (bright white)
+  if (!fallingStarHeadTexture) createFallingStarTextures();
+  const headMat = new THREE.SpriteMaterial({
+    map: fallingStarHeadTexture,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    opacity: 1.0,
+  });
+  const head = new THREE.Sprite(headMat);
+  const headScale = cfg.headSize * (0.8 + Math.random() * 0.4);
+  head.scale.set(headScale, headScale, 1);
+  group.add(head);
+
+  // Trail particles
+  const trail = [];
+  if (!fallingStarTrailTexture) createFallingStarTextures();
+  for (let i = 0; i < cfg.trailLength; i++) {
+    const trailMat = new THREE.SpriteMaterial({
+      map: fallingStarTrailTexture,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.7 * (1 - i / cfg.trailLength),
+    });
+    const dot = new THREE.Sprite(trailMat);
+    const tScale = cfg.trailSize * (1 - i / cfg.trailLength) * (0.7 + Math.random() * 0.3);
+    dot.scale.set(tScale, tScale, 1);
+    // Spread trail behind the head along direction
+    const trailOffset = dir.clone().multiplyScalar(-i * 2.5);
+    const spread = new THREE.Vector3(
+      (Math.random() - 0.5) * cfg.spreadAngle * (i + 1),
+      (Math.random() - 0.5) * cfg.spreadAngle * (i + 1),
+      (Math.random() - 0.5) * cfg.spreadAngle * (i + 1)
+    );
+    trailOffset.add(spread);
+    dot.position.copy(trailOffset);
+    dot.userData.trailIdx = i;
+    group.add(dot);
+    trail.push(dot);
+  }
+
+  fallingStarGroup.add(group);
+
+  const starData = {
+    group,
+    head,
+    trail,
+    dir,
+    lifetime: cfg.lifetime * (0.8 + Math.random() * 0.4),
+    age: 0,
+    speed: cfg.speed * (0.8 + Math.random() * 0.4),
+    startPos: startPos.clone(),
+  };
+
+  activeFallingStars.push(starData);
+}
+
+function updateFallingStars() {
+  const cfg = FALLING_STAR_CONFIG;
+  const dt = 0.016; // ~60fps frame delta
+
+  for (let i = activeFallingStars.length - 1; i >= 0; i--) {
+    const fs = activeFallingStars[i];
+    fs.age += dt;
+
+    const progress = fs.age / fs.lifetime;
+
+    // Move along direction
+    fs.group.position.add(fs.dir.clone().multiplyScalar(fs.speed));
+
+    // Fade out: start fading at 40% of lifetime, fully gone at 100%
+    let fadeOpacity = 1.0;
+    if (progress > 0.4) {
+      fadeOpacity = 1.0 - (progress - 0.4) / 0.6;
+    }
+    fadeOpacity = Math.max(0, fadeOpacity);
+
+    // Head fade
+    fs.head.material.opacity = fadeOpacity;
+
+    // Trail fade (each dot fades proportionally)
+    fs.trail.forEach((dot, idx) => {
+      const trailProgress = idx / cfg.trailLength;
+      const dotFade = fadeOpacity * (1 - trailProgress * 0.5);
+      dot.material.opacity = Math.max(0, dotFade);
+    });
+
+    // Scale head down as it fades
+    const headScale = cfg.headSize * (0.8 + Math.random() * 0.4) * (0.5 + 0.5 * fadeOpacity);
+    fs.head.scale.set(headScale, headScale, 1);
+
+    // Remove if fully faded
+    if (fadeOpacity <= 0 || fs.age >= fs.lifetime) {
+      // Dispose materials
+      fs.head.material.dispose();
+      fs.trail.forEach(t => t.material.dispose());
+      fallingStarGroup.remove(fs.group);
+      activeFallingStars.splice(i, 1);
+    }
+  }
+}
+
+function startFallingStarSpawner() {
+  function scheduleNext() {
+    const delay = FALLING_STAR_CONFIG.spawnMinInterval +
+      Math.random() * (FALLING_STAR_CONFIG.spawnMaxInterval - FALLING_STAR_CONFIG.spawnMinInterval);
+    fallingStarSpawnTimer = setTimeout(() => {
+      spawnFallingStar();
+      scheduleNext();
+    }, delay);
+  }
+  // Spawn first one after a short initial delay
+  setTimeout(() => {
+    spawnFallingStar();
+    scheduleNext();
+  }, 1000 + Math.random() * 2000);
+}
 
 function buildStars() {
   while (starGroup.children.length) {
@@ -1581,6 +1808,9 @@ function animate() {
     controls.autoRotate = true;
   }
 
+  // Update falling stars
+  updateFallingStars();
+
   controls.update();
   composer.render();
 }
@@ -1744,6 +1974,7 @@ async function init() {
   await initializeApp();
   setupRealtimeSubscriptions();
   startNewStarPolling();
+  startFallingStarSpawner();
   setupSupportToggle();
 
   setTimeout(() => {
