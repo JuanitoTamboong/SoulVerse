@@ -1,0 +1,174 @@
+-- =============================================
+-- ULTIMATE BAN SPAMMER — Debug-Ready
+-- Run this ENTIRE script in Supabase SQL Editor
+-- =============================================
+
+-- Drop old function
+DROP FUNCTION IF EXISTS ban_spammer(TEXT, TEXT);
+
+-- =============================================
+-- Create banned_users table (if not exists)
+-- =============================================
+CREATE TABLE IF NOT EXISTS public.banned_users (
+    user_id TEXT PRIMARY KEY,
+    username TEXT,
+    reason TEXT,
+    banned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.banned_users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can read banned_users" ON public.banned_users;
+CREATE POLICY "Anyone can read banned_users"
+    ON public.banned_users FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Only admins can manage banned_users" ON public.banned_users;
+CREATE POLICY "Only admins can manage banned_users"
+    ON public.banned_users FOR ALL USING (true) WITH CHECK (true);
+
+-- =============================================
+-- IMPROVED BAN FUNCTION with better search
+-- =============================================
+CREATE OR REPLACE FUNCTION ban_spammer(username TEXT, reason TEXT DEFAULT 'Spam')
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    found_user_id TEXT;
+    comments_deleted INTEGER;
+    stars_deleted INTEGER;
+    search_term TEXT;
+BEGIN
+    -- Prepare search term (handle both full user_id or partial)
+    search_term := username;
+
+    -- 🔍 SEARCH STRATEGY 1: Check comments (full match)
+    SELECT DISTINCT user_id INTO found_user_id
+    FROM comments WHERE user_id = search_term LIMIT 1;
+
+    -- 🔍 SEARCH STRATEGY 2: Check stars (full match)
+    IF found_user_id IS NULL THEN
+        SELECT DISTINCT user_id INTO found_user_id
+        FROM stars WHERE user_id = search_term LIMIT 1;
+    END IF;
+
+    -- 🔍 SEARCH STRATEGY 3: Check comments (partial match)
+    IF found_user_id IS NULL THEN
+        SELECT DISTINCT user_id INTO found_user_id
+        FROM comments WHERE user_id LIKE '%' || search_term || '%' LIMIT 1;
+    END IF;
+
+    -- 🔍 SEARCH STRATEGY 4: Check stars (partial match)
+    IF found_user_id IS NULL THEN
+        SELECT DISTINCT user_id INTO found_user_id
+        FROM stars WHERE user_id LIKE '%' || search_term || '%' LIMIT 1;
+    END IF;
+
+    -- If still not found, show sample user IDs for reference
+    IF found_user_id IS NULL THEN
+        RETURN '❌ User not found: ' || username || '. Try using the exact user_id. Run: SELECT user_id FROM comments LIMIT 10; to see available user IDs.';
+    END IF;
+
+    -- Check if already banned
+    IF EXISTS (SELECT 1 FROM public.banned_users WHERE user_id = found_user_id) THEN
+        RETURN '⚠️ User ' || username || ' (ID: ' || found_user_id || ') is already banned';
+    END IF;
+
+    -- Delete their comments
+    comments_deleted := 0; stars_deleted := 0;
+
+    BEGIN
+        WITH deleted AS (DELETE FROM comments WHERE user_id = found_user_id RETURNING id)
+        SELECT COUNT(*) INTO comments_deleted FROM deleted;
+    EXCEPTION WHEN OTHERS THEN comments_deleted := 0;
+    END;
+
+    BEGIN
+        WITH deleted AS (DELETE FROM stars WHERE user_id = found_user_id RETURNING id)
+        SELECT COUNT(*) INTO stars_deleted FROM deleted;
+    EXCEPTION WHEN OTHERS THEN stars_deleted := 0;
+    END;
+
+    BEGIN DELETE FROM user_stats WHERE user_id = found_user_id;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    -- Ban the user
+    INSERT INTO public.banned_users (user_id, username, reason)
+    VALUES (found_user_id, username, reason);
+
+    RETURN '✅ User "' || username || '" (ID: ' || found_user_id || ') banned! Deleted ' ||
+           comments_deleted || ' comments and ' || stars_deleted || ' stars';
+END;
+$$;
+
+-- =============================================
+-- BLOCK BANNED USERS
+-- =============================================
+DROP POLICY IF EXISTS "Block banned users from commenting" ON comments;
+CREATE POLICY "Block banned users from commenting"
+    ON comments FOR INSERT
+    WITH CHECK (NOT EXISTS (
+        SELECT 1 FROM public.banned_users WHERE user_id = current_setting('app.current_user_id', true)
+    ));
+
+DROP POLICY IF EXISTS "Block banned users from starring" ON stars;
+CREATE POLICY "Block banned users from starring"
+    ON stars FOR INSERT
+    WITH CHECK (NOT EXISTS (
+        SELECT 1 FROM public.banned_users WHERE user_id = current_setting('app.current_user_id', true)
+    ));
+
+-- =============================================
+-- UNBAN FUNCTION (FIXED)
+-- =============================================
+CREATE OR REPLACE FUNCTION unban_user(username TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    found_user_id TEXT;
+BEGIN
+    SELECT user_id INTO found_user_id
+    FROM public.banned_users
+    WHERE public.banned_users.username = unban_user.username
+       OR public.banned_users.user_id LIKE '%' || unban_user.username || '%';
+    
+    IF found_user_id IS NULL THEN
+        RETURN '❌ User not found in banned list: ' || username;
+    END IF;
+    
+    DELETE FROM public.banned_users WHERE user_id = found_user_id;
+    RETURN '✅ User "' || username || '" has been unbanned!';
+END;
+$$;
+
+-- =============================================
+-- IS BANNED (FIXED)
+-- =============================================
+DROP FUNCTION IF EXISTS is_user_banned(TEXT);
+CREATE OR REPLACE FUNCTION is_user_banned(check_user_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN EXISTS(
+        SELECT 1 FROM public.banned_users WHERE public.banned_users.user_id = is_user_banned.check_user_id
+    );
+END;
+$$;
+
+-- =============================================
+-- HELPER VIEW
+-- =============================================
+CREATE OR REPLACE VIEW banned_users_list AS
+SELECT * FROM public.banned_users ORDER BY banned_at DESC;
+
+-- =============================================
+-- ✅ SUCCESS MESSAGE
+-- =============================================
+SELECT '✅ Ban system v2 installed!';
+
