@@ -1,41 +1,74 @@
-# Fix Plan: Loading Screen & Subtitle Mobile Responsiveness
+# SoulVerse Chat & Notification Fix Plan
 
-## Information Gathered
+## Issues Identified
 
-### Loading Screen Issues
-- **`#loading-screen`** uses `position: fixed; inset: 0;` with flexbox centering (`align-items: center; justify-content: center;`) — this is correct structurally.
-- **`.loading-star`** has a fixed `font-size: 4rem` (no responsive scaling) — on small mobile screens this can push content off-center or overflow horizontally.
-- **`.loading-text`** has `font-size: 1.2rem` and `letter-spacing: 0.3em` — on narrow screens, the large letter-spacing with the text "Igniting the SoulVerse..." could cause text to overflow, breaking centering.
+### 1. Missing `renderChatMessages()` function
+Referenced in `sendChatMessage()`, `startChatWith()`, and realtime subscription but never implemented.
 
-### Landing Subtitle Issues
-- **`.landing-subtitle`** ("Where every feeling becomes a star") has `letter-spacing: 0.5em` which on mobile can make the text too wide, causing overflow or awkward wrapping.
-- The existing `@media (max-width: 640px)` rule reduces it to `letter-spacing: 0.3em` but this may still be too wide for very small screens (320px-375px).
-- `margin-bottom: 3rem` is large on mobile, creating excessive space before the form.
+### 2. Missing `loadChatHistory()` function
+Referenced in `startChatWith()` and `openChatPanel()` but never implemented.
+
+### 3. Corrupted code in `js/script.js`
+Around the `startChatWith()` function area, there are orphaned HTML template fragments:
+```
+        </div>` : ''}
+        <div class="chat-msg-edit-form" data-msg-id="${msg.id}">
+```
+This is leftover from a partial/incomplete `renderChatMessages()` implementation.
+
+### 4. Delete private message not wired to UI
+`deletePrivateMessage()` exists in Supabase operations but has no UI button in chat messages.
+
+### 5. Edit private message not wired to UI
+`editPrivateMessage()` exists in Supabase operations but has no edit button/functionality in chat messages.
+
+### 6. Notification delay issues
+- Toast notifications use 3000ms timeout (OK)
+- Realtime subscription references broken `renderChatMessages()` 
+- Need to ensure instant delivery with realtime
 
 ## Plan
 
-### 1. Fix Loading Screen for Mobile
-- Add responsive font sizes using `clamp()` for `.loading-star` and `.loading-text`
-- Add a dedicated `@media (max-width: 480px)` rule for the loading screen to further reduce sizes and ensure centering
+### Step 1: Fix corrupted code
+- Remove orphaned HTML fragments between `startChatWith()` and `openChatPanel()`
+- Clean up the area to restore proper JavaScript syntax
 
-### 2. Fix Landing Subtitle for Mobile
-- Add a `@media (max-width: 480px)` rule to further reduce `letter-spacing` on `.landing-subtitle`
-- Reduce `margin-bottom` on `.landing-subtitle` for small screens
+### Step 2: Implement `loadChatHistory()`
+- Load private messages from Supabase for current conversation
+- Store in `state.chatMessages`
+- Call `renderChatMessages()` after loading
+- Mark messages as read
+
+### Step 3: Implement `renderChatMessages()`
+- Render chat messages in the chat detail view
+- Show sent messages (right-aligned) vs received (left-aligned)
+- Add "edited" indicator for edited messages
+- Add delete button hover action for own messages
+- Add edit button hover action for own messages
+- Include inline edit form for editing messages
+- Show deleted message placeholder
+
+### Step 4: Wire up delete functionality
+- Add delete button in chat message actions
+- Implement confirmation or instant delete
+- Update UI and Supabase
+
+### Step 5: Wire up edit functionality
+- Add edit button in chat message actions
+- Show inline edit form replacing the bubble
+- Save on submit/Enter
+- Cancel on Escape
+- Update UI and Supabase
+
+### Step 6: Notification fixes
+- Ensure realtime subscription properly calls fixed `renderChatMessages()`
+- Add toast for new messages
+- Chat badge update for unread count
 
 ## Files to Edit
-- `css/style.css` — Add/update responsive CSS rules
-- `js/script.js` — Fix sound not triggering on form submit
+1. `js/script.js` — main implementation
+2. `css/style.css` — already has styles for edit/delete (verify existing)
 
-## Sound Fix Details
-- Made `initAudio()` async with proper `await audioCtx.resume()` — ensures AudioContext is fully running before creating oscillators
-- Made `playChime()` async with `await audioCtx.resume()` — fixes the suspended AudioContext issue on mobile browsers
-- Removed duplicate `setTimeout(() => playChime(), 500)` in form submit handler — `saveMessage()` already calls `playChime()`
-- Form submit now `await initAudio()` before calling `saveMessage()` — ensures audio context is fully initialized before the chime fires
-
-## No Dependencies
-- No other files need changes
-
-## Follow-up Steps
-- Test by opening `index.html` in a browser and resizing to mobile widths (320px-480px)
-- Test sound by clicking "Release into the Universe" — should hear a chime
+## Files to Create
+None needed
 

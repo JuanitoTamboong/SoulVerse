@@ -448,6 +448,38 @@ async function getUnreadCount() {
 }
 
 // ============================================================
+// PRIVATE MESSAGE DELETE & UPDATE (via Supabase RPC)
+// ============================================================
+async function deletePrivateMessage(messageId) {
+  try {
+    const { data, error } = await supabase.rpc('delete_private_message', {
+      p_message_id: messageId,
+      p_user_id: state.sessionId
+    });
+    if (error) throw error;
+    return data && data.length > 0 ? data[0] : null;
+  } catch (err) {
+    showToast('⚠️ Failed to delete message');
+    return null;
+  }
+}
+
+async function updatePrivateMessage(messageId, newMessage) {
+  try {
+    const { data, error } = await supabase.rpc('update_private_message', {
+      p_message_id: messageId,
+      p_new_message: newMessage.trim(),
+      p_user_id: state.sessionId
+    });
+    if (error) throw error;
+    return data && data.length > 0 ? data[0] : null;
+  } catch (err) {
+    showToast('⚠️ Failed to edit message');
+    return null;
+  }
+}
+
+// ============================================================
 // INITIALIZE
 // ============================================================
 async function initializeApp() {
@@ -1292,21 +1324,137 @@ function renderChatMessages() {
   state.chatMessages.forEach(msg => {
     const isMine = msg.sender_id === state.sessionId;
     const el = document.createElement('div');
-    el.className = 'chat-msg' + (isMine ? ' sent' : ' received');
+    
+    // Handle deleted state
+    if (msg.is_deleted) {
+      el.className = 'chat-msg deleted' + (isMine ? ' sent' : ' received');
+      const time = new Date(msg.created_at);
+      const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      el.innerHTML = `
+        <div class="chat-msg-bubble">🗑️ This message was deleted</div>
+        <div class="chat-msg-time">${timeStr}</div>
+      `;
+      chatMessages.appendChild(el);
+      return;
+    }
+    
     const time = new Date(msg.created_at);
     const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const name = isMine ? 'You' : msg.sender_name;
+    const editedBadge = msg.is_edited ? ' <span class="chat-msg-edited">(edited)</span>' : '';
+    
+    el.className = 'chat-msg' + (isMine ? ' sent' : ' received');
+    el.dataset.msgId = msg.id;
+    
+    let actionsHtml = '';
+    if (isMine) {
+      actionsHtml = `
+        <div class="chat-msg-actions">
+          <button class="chat-msg-action-btn edit" title="Edit" data-msg-id="${msg.id}">✎</button>
+          <button class="chat-msg-action-btn delete" title="Delete" data-msg-id="${msg.id}">🗑️</button>
+        </div>
+      `;
+    }
+    
     el.innerHTML = `
       <div class="chat-msg-name">${name}</div>
-      <div class="chat-msg-bubble">${msg.message}</div>
+      <div class="chat-msg-bubble">${msg.message}${editedBadge}</div>
       <div class="chat-msg-time">${timeStr}</div>
+      ${actionsHtml}
     `;
+    
+    // Add event listeners for edit/delete buttons
+    if (isMine) {
+      const editBtn = el.querySelector('.chat-msg-action-btn.edit');
+      const deleteBtn = el.querySelector('.chat-msg-action-btn.delete');
+      
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startChatEdit(msg, el);
+      });
+      
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleChatDelete(msg);
+      });
+    }
+    
     chatMessages.appendChild(el);
   });
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function openChatPanel() {
+// ============================================================
+// CHAT MESSAGE EDIT & DELETE ACTIONS
+// ============================================================
+function startChatEdit(msg, el) {
+  if (msg.is_deleted) return;
+  
+  el.classList.add('editing');
+  const bubble = el.querySelector('.chat-msg-bubble');
+  const originalText = msg.message;
+  
+  const editForm = document.createElement('div');
+  editForm.className = 'chat-msg-edit-form';
+  editForm.innerHTML = `
+    <input class="chat-msg-edit-input" type="text" value="${originalText}" maxlength="500">
+    <div class="chat-msg-edit-actions">
+      <button class="chat-msg-edit-save">Save</button>
+      <button class="chat-msg-edit-cancel">Cancel</button>
+    </div>
+  `;
+  
+  bubble.style.display = 'none';
+  el.appendChild(editForm);
+  
+  const input = editForm.querySelector('.chat-msg-edit-input');
+  input.focus();
+  input.select();
+  
+  editForm.querySelector('.chat-msg-edit-save').addEventListener('click', async () => {
+    const newText = input.value.trim();
+    if (newText && newText !== originalText) {
+      const updated = await updatePrivateMessage(msg.id, newText);
+      if (updated) {
+        msg.message = updated.message;
+        msg.is_edited = updated.is_edited;
+        renderChatMessages();
+        showToast('✎ Message edited');
+      }
+    } else {
+      renderChatMessages();
+    }
+  });
+  
+  editForm.querySelector('.chat-msg-edit-cancel').addEventListener('click', () => {
+    renderChatMessages();
+  });
+  
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      editForm.querySelector('.chat-msg-edit-save').click();
+    } else if (e.key === 'Escape') {
+      editForm.querySelector('.chat-msg-edit-cancel').click();
+    }
+  });
+}
+
+async function handleChatDelete(msg) {
+  if (msg.is_deleted) return;
+  
+  const confirmed = confirm('Delete this message? It will be removed for both of you.');
+  if (!confirmed) return;
+  
+  const result = await deletePrivateMessage(msg.id);
+  if (result) {
+    msg.is_deleted = result.is_deleted;
+    msg.message = result.message;
+    renderChatMessages();
+    showToast('🗑️ Message deleted');
+  }
+}
+
+async function openChatPanel() {
   chatPanel.classList.add('visible');
   // If no current conversation, show the list
   if (!state.currentConvId) {
@@ -1316,7 +1464,8 @@ function openChatPanel() {
     chatConversationsList.style.display = 'none';
     chatDetail.style.display = 'flex';
   }
-  renderConversations();
+  // Refresh conversations from server to get latest messages
+  await loadChatData();
   if (state.currentConvId) {
     loadChatHistory();
   }
@@ -2124,40 +2273,53 @@ function setupRealtimeSubscriptions() {
     )
     .subscribe();
 
-  // Private messages realtime
+
   supabase
     .channel('private-messages-realtime')
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'private_messages' },
       async (payload) => {
         const newMsg = payload.new;
-        if (newMsg.recipient_id !== state.sessionId && newMsg.sender_id !== state.sessionId) return;
+        // Skip our own messages (we already added them locally)
+        if (newMsg.sender_id === state.sessionId) return;
+        // Only process messages that involve us
+        if (newMsg.recipient_id !== state.sessionId) return;
 
-        if (newMsg.recipient_id === state.sessionId) {
-          // We received a new message
-          if (state.soundOn) {
-            await initAudio();
-            playCommentChime();
-          }
-
-          await loadChatData();
-
-          // If we're currently viewing this conversation, reload and mark as read
-          if (state.currentConvId === newMsg.conversation_id && chatPanel.classList.contains('visible')) {
-            state.chatMessages.push(newMsg);
-            renderChatMessages();
-            await markMessagesAsRead(state.currentConvId);
-            await updateUnreadCount();
-          } else {
-            // Update badge only
-            state.unreadCount++;
-            updateChatBadge();
-            showToast(`💬 ${newMsg.sender_name} sent you a private message`);
-          }
-        } else if (newMsg.sender_id === state.sessionId && state.currentConvId === newMsg.conversation_id) {
-          // We sent a message, add it to the chat
+        // If we're currently viewing this conversation, add the message live
+        if (state.currentConvId === newMsg.conversation_id) {
           state.chatMessages.push(newMsg);
           renderChatMessages();
+          await markMessagesAsRead(state.currentConvId);
+          await updateUnreadCount();
+        } else {
+          // Refresh conversation list and update badge
+          await loadChatData();
+          state.unreadCount++;
+          updateChatBadge();
+          showToast(`💬 ${newMsg.sender_name} sent you a private message`);
+        }
+      }
+    )
+    .on('postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'private_messages' },
+      async (payload) => {
+        const updatedMsg = payload.new;
+        if (updatedMsg.recipient_id !== state.sessionId && updatedMsg.sender_id !== state.sessionId) return;
+
+        // Update the message in the local state
+        const idx = state.chatMessages.findIndex(m => m.id === updatedMsg.id);
+        if (idx !== -1) {
+          state.chatMessages[idx] = updatedMsg;
+          if (state.currentConvId === updatedMsg.conversation_id) {
+            renderChatMessages();
+          }
+        }
+
+        // Also update in conversations list
+        const convIdx = state.chatConversations.findIndex(c => c.conversation_id === updatedMsg.conversation_id);
+        if (convIdx !== -1 && !updatedMsg.is_deleted) {
+          state.chatConversations[convIdx].lastMessage = updatedMsg.message;
+          renderConversations();
         }
       }
     )
@@ -2222,10 +2384,10 @@ function startNewStarPolling() {
       }
     } catch (err) {}
 
-    state.newStarPollTimer = setTimeout(pollForNewStars, 10000);
+    state.newStarPollTimer = setTimeout(pollForNewStars, 4000);
   }
 
-  state.newStarPollTimer = setTimeout(pollForNewStars, 5000);
+  state.newStarPollTimer = setTimeout(pollForNewStars, 2000);
 }
 
 // ============================================================

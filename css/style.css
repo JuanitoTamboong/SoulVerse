@@ -1426,6 +1426,105 @@ a { color: inherit; text-decoration: none; }
   padding: 0 0.3rem;
 }
 
+/* Chat message actions (edit/delete) */
+.chat-msg-actions {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.chat-msg.sent:hover .chat-msg-actions {
+  opacity: 1;
+}
+.chat-msg-action-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.3);
+  font-size: 0.6rem;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  line-height: 1;
+}
+.chat-msg-action-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.7);
+}
+.chat-msg-action-btn.delete:hover {
+  color: #ff6b6b;
+  background: rgba(255,50,50,0.15);
+}
+.chat-msg-action-btn.edit:hover {
+  color: #a855f7;
+  background: rgba(124,58,237,0.15);
+}
+
+/* Chat message editing state */
+.chat-msg.editing .chat-msg-bubble {
+  display: none;
+}
+.chat-msg-edit-form {
+  display: none;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 200px;
+}
+.chat-msg.editing .chat-msg-edit-form {
+  display: flex;
+}
+.chat-msg-edit-input {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(124,58,237,0.4);
+  border-radius: 8px;
+  color: #fff;
+  outline: none;
+  font-family: inherit;
+}
+.chat-msg-edit-input:focus {
+  border-color: rgba(124,58,237,0.7);
+}
+.chat-msg-edit-actions {
+  display: flex;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+.chat-msg-edit-save, .chat-msg-edit-cancel {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  border: none;
+}
+.chat-msg-edit-save {
+  background: rgba(124,58,237,0.4);
+  color: #fff;
+}
+.chat-msg-edit-save:hover {
+  background: rgba(124,58,237,0.6);
+}
+.chat-msg-edit-cancel {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6);
+}
+.chat-msg-edit-cancel:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+/* Deleted message placeholder */
+.chat-msg.deleted .chat-msg-bubble {
+  font-style: italic;
+  color: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.03);
+  font-size: 0.7rem;
+}
+
 /* Chat input area */
 .chat-input-area {
   display: flex;

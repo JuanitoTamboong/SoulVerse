@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS private_messages (
   recipient_name VARCHAR(100) DEFAULT 'Anonymous',
   message TEXT NOT NULL,
   is_read BOOLEAN DEFAULT FALSE,
+  is_edited BOOLEAN DEFAULT FALSE,
+  is_deleted BOOLEAN DEFAULT FALSE,
   conversation_id TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -64,6 +66,65 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role
 -- You may need to enable the replication for this table in Supabase:
 -- Go to Database > Replication and add the private_messages table
 -- Or run: ALTER PUBLICATION supabase_realtime ADD TABLE private_messages;
+
+-- ============================================================
+-- FUNCTIONS FOR EDIT & DELETE PRIVATE MESSAGES
+-- ============================================================
+
+-- Function to edit a private message (soft edit - updates text, sets is_edited flag)
+CREATE OR REPLACE FUNCTION update_private_message(
+  p_message_id UUID,
+  p_new_message TEXT,
+  p_user_id TEXT
+)
+RETURNS SETOF private_messages
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  UPDATE private_messages
+  SET message = p_new_message,
+      is_edited = TRUE,
+      is_deleted = FALSE
+  WHERE id = p_message_id
+    AND sender_id = p_user_id
+    AND is_deleted = FALSE
+  RETURNING *;
+  
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Message not found or you do not have permission to edit it';
+  END IF;
+END;
+$$;
+
+-- Function to soft-delete a private message
+CREATE OR REPLACE FUNCTION delete_private_message(
+  p_message_id UUID,
+  p_user_id TEXT
+)
+RETURNS SETOF private_messages
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  UPDATE private_messages
+  SET is_deleted = TRUE,
+      message = 'This message was deleted'
+  WHERE id = p_message_id
+    AND sender_id = p_user_id
+  RETURNING *;
+  
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Message not found or you do not have permission to delete it';
+  END IF;
+END;
+$$;
+
+-- ============================================================
+-- GRANT EXECUTION PERMISSIONS
+-- ============================================================
+GRANT EXECUTE ON FUNCTION update_private_message TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION delete_private_message TO anon, authenticated, service_role;
 
 -- ============================================================
 -- DONE
