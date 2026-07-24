@@ -646,10 +646,13 @@ function buildStars() {
     return;
   }
 
+  // Minimum distance from galaxy center to keep stars out of bright core glow
+  const MIN_RADIUS = 28;
+
   filteredMsgs.forEach((msg, idx) => {
     const targetT = filteredMsgs.length > 1 ? idx / (filteredMsgs.length - 1) : 0.5;
     const angle = targetT * Math.PI * 2 * GALAXY_ARMS + (Math.random() - 0.5) * 0.2;
-    const radius = targetT * GALAXY_RADIUS + (Math.random() - 0.5) * 5;
+    const radius = MIN_RADIUS + targetT * (GALAXY_RADIUS - MIN_RADIUS) + (Math.random() - 0.5) * 5;
     msg._pos = {
       x: Math.cos(angle) * radius + (Math.random() - 0.5) * 3,
       y: (Math.random() - 0.5) * GALAXY_THICKNESS * 0.5,
