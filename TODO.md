@@ -47,6 +47,12 @@
   - Otherwise: calls `loadChatData()` to refresh conversations list, increments unread count, updates badge, and shows toast notification
 - **Added `await loadChatData()` to `openChatPanel()`** — Ensures the conversation list is always fresh when the user opens the chat panel
 
+### 9. ✅ Fixed Falling Stars Lag After Device Sleep/Wake-Up
+- Added `maxActiveStars: 5` cap to `FALLING_STAR_CONFIG` — prevents more than 5 simultaneous falling stars
+- Increased spawn intervals: `spawnMinInterval` 2000→3000ms, `spawnMaxInterval` 5000→6000ms — reduces overall density
+- Added early return guard in `spawnFallingStar()` — silently discards spawns if at capacity
+- Added device wake-up detection in `startFallingStarSpawner()` — tracks `lastSpawnTime` via `performance.now()`, detects if elapsed time exceeds expected delay by >1s, and skips the spawn to prevent the accumulated `setTimeout` callback burst from flooding the scene
+
 ## Run in Supabase SQL Editor
 Execute the new functions from `sql-schema/private-chat-system.txt` (the `update_private_message` and `delete_private_message` functions at the bottom)
 

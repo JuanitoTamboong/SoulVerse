@@ -64,8 +64,9 @@ const GALAXY_THICKNESS = 20;
 // FALLING STARS CONFIG
 // ============================================================
 const FALLING_STAR_CONFIG = {
-  spawnMinInterval: 2000,    // ms
-  spawnMaxInterval: 5000,    // ms
+  spawnMinInterval: 3000,    // ms (increased from 2000 to reduce density)
+  spawnMaxInterval: 6000,    // ms (increased from 5000 to reduce density)
+  maxActiveStars: 5,         // hard cap to prevent lag from burst spawns
   lifetime: 3.5,             // seconds before fully faded
   speed: 2.5,               // units per frame at 60fps
   trailLength: 18,          // number of trail particles
@@ -855,6 +856,8 @@ let fallingStarSpawnTimer = null;
 
 function spawnFallingStar() {
   const cfg = FALLING_STAR_CONFIG;
+  // Enforce max active stars cap to prevent burst lag
+  if (activeFallingStars.length >= cfg.maxActiveStars) return;
   const angleXY = Math.random() * Math.PI * 2;
   const startRadius = 100 + Math.random() * 150;
   const heightOffset = (Math.random() - 0.5) * 100;
@@ -947,15 +950,28 @@ function updateFallingStars() {
 }
 
 function startFallingStarSpawner() {
+  let lastSpawnTime = performance.now();
   function scheduleNext() {
     const delay = FALLING_STAR_CONFIG.spawnMinInterval +
       Math.random() * (FALLING_STAR_CONFIG.spawnMaxInterval - FALLING_STAR_CONFIG.spawnMinInterval);
     fallingStarSpawnTimer = setTimeout(() => {
+      const now = performance.now();
+      const elapsed = now - lastSpawnTime;
+      // Detect device wake-up: if elapsed time is significantly larger than the scheduled delay,
+      // skip this spawn to prevent the accumulated setTimeout burst
+      if (elapsed > delay + 1000) {
+        lastSpawnTime = now;
+        scheduleNext();
+        return;
+      }
+      lastSpawnTime = now;
       spawnFallingStar();
       scheduleNext();
     }, delay);
   }
+  lastSpawnTime = performance.now();
   setTimeout(() => {
+    lastSpawnTime = performance.now();
     spawnFallingStar();
     scheduleNext();
   }, 1000 + Math.random() * 2000);
