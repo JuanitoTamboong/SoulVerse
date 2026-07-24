@@ -102,6 +102,14 @@
       <span>Manage</span>
     </button>
     
+    <button class="hud-btn" id="btn-chat">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span>Chat</span>
+      <span class="chat-badge" id="chat-badge" style="display:none;">0</span>
+    </button>
+    
     <button class="hud-btn" id="btn-refresh">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M23 4v6h-6"/>
@@ -110,8 +118,6 @@
       </svg>
       <span>Refresh</span>
     </button>
-
-    <input class="hud-search" id="search-input" type="text" placeholder="Search stars..." />
 
     <div class="filter-pills" id="filter-pills"></div>
 
@@ -140,6 +146,9 @@
       <div class="modal-actions">
         <button class="modal-like-btn" id="modal-like-btn">
           💡 <span id="modal-like-count">0</span> Send Light
+        </button>
+        <button class="modal-pm-btn" id="modal-pm-btn">
+          💬 Private Message
         </button>
         <button class="modal-close-btn" id="modal-close-btn">✕</button>
       </div>
@@ -175,6 +184,39 @@
       <div class="delete-confirm-actions">
         <button class="delete-confirm-cancel-btn" id="delete-confirm-cancel">Cancel</button>
         <button class="delete-confirm-delete-btn" id="delete-confirm-delete">✕ Delete Forever</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== CHAT PANEL ====== -->
+  <div id="chat-panel">
+    <div class="backdrop" id="chat-backdrop"></div>
+    <div class="chat-card">
+      <div class="chat-header">
+        <h2>💬 Messages</h2>
+        <button class="chat-close-btn" id="chat-close-btn">✕</button>
+      </div>
+      
+      <!-- Conversation list view -->
+      <div class="chat-conversations" id="chat-conversations">
+        <div class="chat-conversations-list" id="chat-conversations-list">
+          <div class="chat-convs-empty">No conversations yet. Click "Private Message" on a star to start chatting!</div>
+        </div>
+      </div>
+
+      <!-- Conversation detail view -->
+      <div class="chat-detail" id="chat-detail" style="display:none;">
+        <div class="chat-detail-header">
+          <button class="chat-back-btn" id="chat-back-btn">← Back</button>
+          <span class="chat-detail-name" id="chat-detail-name">User</span>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+          <div class="chat-messages-empty">Send a message to start the conversation!</div>
+        </div>
+        <div class="chat-input-area">
+          <input class="chat-input" id="chat-input" type="text" placeholder="Type a private message..." autocomplete="off" />
+          <button class="chat-send-btn" id="chat-send-btn">Send</button>
+        </div>
       </div>
     </div>
   </div>

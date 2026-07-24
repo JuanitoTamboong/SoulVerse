@@ -83,8 +83,15 @@ const state = {
   starDataMap: new Map(),
   selectedStarId: null,
   currentFilter: null,
-  searchQuery: '',
   soundOn: true,
+  searchQuery: '',
+  // Chat state
+  chatConversations: [],
+  chatMessages: [],
+  currentConvId: null,
+  chatPartnerName: '',
+  chatPartnerId: '',
+  unreadCount: 0,
   isExploring: false,
   exploreTimer: null,
   animTime: 0,
@@ -111,6 +118,12 @@ function getSessionId() {
 }
 state.sessionId = getSessionId();
 
+// Helper to get current user display name
+function getUserDisplayName() {
+  const nameVal = nameInput ? nameInput.value.trim() : '';
+  return nameVal || 'Anonymous';
+}
+
 // DOM refs
 const $ = (s) => document.querySelector(s);
 const landingScreen = $('#landing-screen');
@@ -121,7 +134,6 @@ const input = $('#emotion-input');
 const nameInput = $('#name-input');
 const emotionCat = $('#emotion-category');
 const starCounter = $('#star-counter');
-const searchInput = $('#search-input');
 const filterPills = $('#filter-pills');
 const modal = $('#star-modal');
 const modalBackdrop = $('#modal-backdrop');
@@ -149,6 +161,20 @@ const mystarsList = $('#mystars-list');
 const mystarsCount = $('#mystars-count');
 const loadingScreen = $('#loading-screen');
 const skipBtn = $('#skip-btn');
+// Chat DOM refs
+const btnChat = $('#btn-chat');
+const chatBadge = $('#chat-badge');
+const chatPanel = $('#chat-panel');
+const chatBackdrop = $('#chat-backdrop');
+const chatCloseBtn = $('#chat-close-btn');
+const chatConversationsList = $('#chat-conversations-list');
+const chatDetail = $('#chat-detail');
+const chatBackBtn = $('#chat-back-btn');
+const chatDetailName = $('#chat-detail-name');
+const chatMessages = $('#chat-messages');
+const chatInput = $('#chat-input');
+const chatSendBtn = $('#chat-send-btn');
+const modalPmBtn = $('#modal-pm-btn');
 
 // Delete confirm modal refs
 const deleteConfirmModal = $('#delete-confirm-modal');
@@ -330,6 +356,98 @@ async function saveComment(starId, text, name) {
 }
 
 // ============================================================
+// PRIVATE MESSAGING SUPABASE OPERATIONS
+// ============================================================
+function getConversationId(userA, userB) {
+  return [userA, userB].sort().join('_');
+}
+
+async function sendPrivateMessage(recipientId, recipientName, message) {
+  try {
+    const convId = getConversationId(state.sessionId, recipientId);
+    const senderName = getUserDisplayName();
+    
+    const newMsg = {
+      sender_id: state.sessionId,
+      sender_name: senderName,
+      recipient_id: recipientId,
+      recipient_name: recipientName,
+      message: message.trim(),
+      is_read: false,
+      conversation_id: convId
+    };
+
+    const { data, error } = await supabase
+      .from('private_messages')
+      .insert([newMsg])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    showToast('⚠️ Failed to send message');
+    return null;
+  }
+}
+
+async function loadPrivateMessages(conversationId) {
+  try {
+    const { data, error } = await supabase
+      .from('private_messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    return [];
+  }
+}
+
+async function loadConversations() {
+  try {
+    const { data, error } = await supabase
+      .from('private_messages')
+      .select('*')
+      .or(`sender_id.eq.${state.sessionId},recipient_id.eq.${state.sessionId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    return [];
+  }
+}
+
+async function markMessagesAsRead(conversationId) {
+  try {
+    await supabase
+      .from('private_messages')
+      .update({ is_read: true })
+      .eq('conversation_id', conversationId)
+      .eq('recipient_id', state.sessionId)
+      .eq('is_read', false);
+  } catch (err) {}
+}
+
+async function getUnreadCount() {
+  try {
+    const { count, error } = await supabase
+      .from('private_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('recipient_id', state.sessionId)
+      .eq('is_read', false);
+
+    if (error) throw error;
+    return count || 0;
+  } catch (err) {
+    return 0;
+  }
+}
+
+// ============================================================
 // INITIALIZE
 // ============================================================
 async function initializeApp() {
@@ -372,6 +490,7 @@ async function initializeApp() {
 
   buildStars();
   buildFilterPills();
+  await loadChatData();
 }
 
 // ============================================================
@@ -477,7 +596,6 @@ function createStarTexture(colorHex, size = 256) {
   const cy = size / 2;
   const maxR = size / 2;
 
-  // Brighter, larger glow with more spread
   const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
   grad.addColorStop(0, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},1)`);
   grad.addColorStop(0.1, `rgba(${color.r * 255 | 0},${color.g * 255 | 0},${color.b * 255 | 0},0.95)`);
@@ -489,7 +607,6 @@ function createStarTexture(colorHex, size = 256) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  // Bright core
   const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.3);
   coreGrad.addColorStop(0, '#ffffff');
   coreGrad.addColorStop(0.2, '#ffffff');
@@ -498,7 +615,6 @@ function createStarTexture(colorHex, size = 256) {
   ctx.fillStyle = coreGrad;
   ctx.fillRect(0, 0, size, size);
 
-  // Light rays for extra visibility
   ctx.globalCompositeOperation = 'screen';
   for (let i = 0; i < 6; i++) {
     const angle = (i / 6) * Math.PI;
@@ -515,7 +631,6 @@ function createStarTexture(colorHex, size = 256) {
     ctx.restore();
   }
 
-  // Outer glow ring
   ctx.globalCompositeOperation = 'screen';
   const ringGrad = ctx.createRadialGradient(cx, cy, maxR * 0.3, cx, cy, maxR);
   ringGrad.addColorStop(0, 'transparent');
@@ -539,7 +654,6 @@ function createUserStarTexture(colorHex, size = 256) {
   const cy = size / 2;
   const maxR = size / 2;
 
-  // Extra bright glow for user stars
   const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
   grad.addColorStop(0, `rgba(255,255,255,1)`);
   grad.addColorStop(0.05, `rgba(255,255,255,1)`);
@@ -552,7 +666,6 @@ function createUserStarTexture(colorHex, size = 256) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  // Bright white core
   const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.35);
   coreGrad.addColorStop(0, '#ffffff');
   coreGrad.addColorStop(0.15, '#ffffff');
@@ -561,7 +674,6 @@ function createUserStarTexture(colorHex, size = 256) {
   ctx.fillStyle = coreGrad;
   ctx.fillRect(0, 0, size, size);
 
-  // Extra light rays
   ctx.globalCompositeOperation = 'screen';
   for (let i = 0; i < 8; i++) {
     const angle = (i / 8) * Math.PI;
@@ -579,7 +691,6 @@ function createUserStarTexture(colorHex, size = 256) {
     ctx.restore();
   }
 
-  // Secondary rays
   ctx.globalCompositeOperation = 'screen';
   for (let i = 0; i < 8; i++) {
     const angle = (i / 8) * Math.PI + Math.PI / 8;
@@ -595,7 +706,6 @@ function createUserStarTexture(colorHex, size = 256) {
     ctx.restore();
   }
 
-  // Outer glow ring
   ctx.globalCompositeOperation = 'screen';
   const ringGrad = ctx.createRadialGradient(cx, cy, maxR * 0.4, cx, cy, maxR);
   ringGrad.addColorStop(0, 'transparent');
@@ -631,7 +741,6 @@ let fallingStarHeadTexture = null;
 let fallingStarTrailTexture = null;
 
 function createFallingStarTextures() {
-  // Head — bright white elongated glow
   const headCanvas = document.createElement('canvas');
   headCanvas.width = 128;
   headCanvas.height = 128;
@@ -645,14 +754,12 @@ function createFallingStarTextures() {
   hGrad.addColorStop(1, 'rgba(200,220,255,0)');
   hCtx.fillStyle = hGrad;
   hCtx.fillRect(0, 0, 128, 128);
-  // Extra bright core
   const hCore = hCtx.createRadialGradient(hc, hc, 0, hc, hc, 20);
   hCore.addColorStop(0, 'rgba(255,255,255,1)');
   hCore.addColorStop(0.5, 'rgba(200,220,255,0.8)');
   hCore.addColorStop(1, 'transparent');
   hCtx.fillStyle = hCore;
   hCtx.fillRect(0, 0, 128, 128);
-  // Cross light rays
   hCtx.globalCompositeOperation = 'screen';
   for (let i = 0; i < 4; i++) {
     const angle = (i / 4) * Math.PI;
@@ -669,7 +776,6 @@ function createFallingStarTextures() {
   }
   fallingStarHeadTexture = new THREE.CanvasTexture(headCanvas);
 
-  // Trail — soft glowing dot
   const trailCanvas = document.createElement('canvas');
   trailCanvas.width = 64;
   trailCanvas.height = 64;
@@ -686,7 +792,7 @@ function createFallingStarTextures() {
 }
 
 // ============================================================
-// BUILD STARS — LARGER AND MORE GLOWING
+// BUILD STARS
 // ============================================================
 let starGroup = new THREE.Group();
 scene.add(starGroup);
@@ -701,30 +807,21 @@ let fallingStarSpawnTimer = null;
 
 function spawnFallingStar() {
   const cfg = FALLING_STAR_CONFIG;
-
-  // Choose a random direction across the sky dome
   const angleXY = Math.random() * Math.PI * 2;
   const startRadius = 100 + Math.random() * 150;
   const heightOffset = (Math.random() - 0.5) * 100;
-
   const startPos = new THREE.Vector3(
     Math.cos(angleXY) * startRadius,
     50 + Math.random() * 60 + heightOffset * 0.3,
     Math.sin(angleXY) * startRadius
   );
-
-  // Direction: arc downwards and slightly inward toward galaxy
   const dir = new THREE.Vector3(
     -startPos.x * 0.3 + (Math.random() - 0.5) * 20,
     -(30 + Math.random() * 40),
     -startPos.z * 0.3 + (Math.random() - 0.5) * 20
   ).normalize();
-
-  // Create the group for this falling star
   const group = new THREE.Group();
   group.position.copy(startPos);
-
-  // Head sprite (bright white)
   if (!fallingStarHeadTexture) createFallingStarTextures();
   const headMat = new THREE.SpriteMaterial({
     map: fallingStarHeadTexture,
@@ -737,8 +834,6 @@ function spawnFallingStar() {
   const headScale = cfg.headSize * (0.8 + Math.random() * 0.4);
   head.scale.set(headScale, headScale, 1);
   group.add(head);
-
-  // Trail particles
   const trail = [];
   if (!fallingStarTrailTexture) createFallingStarTextures();
   for (let i = 0; i < cfg.trailLength; i++) {
@@ -752,7 +847,6 @@ function spawnFallingStar() {
     const dot = new THREE.Sprite(trailMat);
     const tScale = cfg.trailSize * (1 - i / cfg.trailLength) * (0.7 + Math.random() * 0.3);
     dot.scale.set(tScale, tScale, 1);
-    // Spread trail behind the head along direction
     const trailOffset = dir.clone().multiplyScalar(-i * 2.5);
     const spread = new THREE.Vector3(
       (Math.random() - 0.5) * cfg.spreadAngle * (i + 1),
@@ -765,60 +859,37 @@ function spawnFallingStar() {
     group.add(dot);
     trail.push(dot);
   }
-
   fallingStarGroup.add(group);
-
   const starData = {
-    group,
-    head,
-    trail,
-    dir,
+    group, head, trail, dir,
     lifetime: cfg.lifetime * (0.8 + Math.random() * 0.4),
     age: 0,
     speed: cfg.speed * (0.8 + Math.random() * 0.4),
     startPos: startPos.clone(),
   };
-
   activeFallingStars.push(starData);
 }
 
 function updateFallingStars() {
   const cfg = FALLING_STAR_CONFIG;
-  const dt = 0.016; // ~60fps frame delta
-
+  const dt = 0.016;
   for (let i = activeFallingStars.length - 1; i >= 0; i--) {
     const fs = activeFallingStars[i];
     fs.age += dt;
-
     const progress = fs.age / fs.lifetime;
-
-    // Move along direction
     fs.group.position.add(fs.dir.clone().multiplyScalar(fs.speed));
-
-    // Fade out: start fading at 40% of lifetime, fully gone at 100%
     let fadeOpacity = 1.0;
-    if (progress > 0.4) {
-      fadeOpacity = 1.0 - (progress - 0.4) / 0.6;
-    }
+    if (progress > 0.4) fadeOpacity = 1.0 - (progress - 0.4) / 0.6;
     fadeOpacity = Math.max(0, fadeOpacity);
-
-    // Head fade
     fs.head.material.opacity = fadeOpacity;
-
-    // Trail fade (each dot fades proportionally)
     fs.trail.forEach((dot, idx) => {
       const trailProgress = idx / cfg.trailLength;
       const dotFade = fadeOpacity * (1 - trailProgress * 0.5);
       dot.material.opacity = Math.max(0, dotFade);
     });
-
-    // Scale head down as it fades
     const headScale = cfg.headSize * (0.8 + Math.random() * 0.4) * (0.5 + 0.5 * fadeOpacity);
     fs.head.scale.set(headScale, headScale, 1);
-
-    // Remove if fully faded
     if (fadeOpacity <= 0 || fs.age >= fs.lifetime) {
-      // Dispose materials
       fs.head.material.dispose();
       fs.trail.forEach(t => t.material.dispose());
       fallingStarGroup.remove(fs.group);
@@ -836,23 +907,20 @@ function startFallingStarSpawner() {
       scheduleNext();
     }, delay);
   }
-  // Spawn first one after a short initial delay
   setTimeout(() => {
     spawnFallingStar();
     scheduleNext();
   }, 1000 + Math.random() * 2000);
 }
 
-// Stable hash from star ID to deterministic pseudo-random values
 function starHash(starId) {
   let hash = 0;
   const str = String(starId);
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash = hash & hash;
   }
-  // Simple LCG to generate multiple independent values from one seed
   function lcg(seed) {
     return function() {
       seed = (seed * 1664525 + 1013904223) & 0x7fffffff;
@@ -892,29 +960,19 @@ function buildStars() {
     return;
   }
 
-  // Minimum distance from galaxy center to keep stars out of bright core glow
   const MIN_RADIUS = 20;
   const MAX_RADIUS = 200;
 
   filteredMsgs.forEach((msg) => {
-    // Use stable deterministic position based on star's unique ID
     const rng = starHash(msg.id);
-    
-    // Each star gets a fixed radial band with natural spread
-    const radiusNorm = rng(); // 0..1 — permanent random radius position
+    const radiusNorm = rng();
     const radius = MIN_RADIUS + radiusNorm * (MAX_RADIUS - MIN_RADIUS);
-    
-    // Assign to one of the spiral arms, but with generous angular spread
     const armIndex = Math.floor(rng() * GALAXY_ARMS);
     const armAngle = (armIndex / GALAXY_ARMS) * Math.PI * 2;
-    // Stars cluster loosely around the arm, not perfectly on it
-    const angleSpread = 0.6 + rng() * 1.0; // generous radian spread per arm
+    const angleSpread = 0.6 + rng() * 1.0;
     const angle = armAngle + (rng() - 0.5) * angleSpread;
-    
-    // Height with natural vertical spread — thicker near center, thinner at edges
-    const heightFactor = 1.0 - radiusNorm * 0.5; // more vertical spread inward
+    const heightFactor = 1.0 - radiusNorm * 0.5;
     const yOffset = (rng() - 0.5) * GALAXY_THICKNESS * heightFactor;
-    
     msg._pos = {
       x: Math.cos(angle) * radius + (rng() - 0.5) * 8,
       y: yOffset + (rng() - 0.5) * 3,
@@ -933,14 +991,9 @@ function buildStars() {
       opacity: 1.0,
     });
     const sprite = new THREE.Sprite(mat);
-    
-    // Stable size and phase from ID hash too
     const rng = starHash(msg.id + '_size');
-    const baseScale = isMyStar ?
-      4.5 + rng() * 4.5 :
-      2.5 + rng() * 3.5;
+    const baseScale = isMyStar ? 4.5 + rng() * 4.5 : 2.5 + rng() * 3.5;
     const phase = rng() * Math.PI * 2;
-    
     sprite.scale.set(baseScale, baseScale, 1);
     sprite.position.set(msg._pos.x, msg._pos.y, msg._pos.z);
     sprite.userData = { msgId: msg.id, baseScale, phase, isMyStar };
@@ -1017,14 +1070,6 @@ function setFilter(emotion) {
 }
 
 // ============================================================
-// SEARCH
-// ============================================================
-searchInput.addEventListener('input', () => {
-  state.searchQuery = searchInput.value;
-  buildStars();
-});
-
-// ============================================================
 // MODAL
 // ============================================================
 let currentModalMsgId = null;
@@ -1045,6 +1090,15 @@ async function openModal(msg) {
   currentModalComments = await loadComments(msg.id);
   renderComments(currentModalComments);
 
+  // Show/hide PM button based on whether this is the user's own star
+  if (msg.user_id === state.sessionId) {
+    modalPmBtn.style.display = 'none';
+  } else {
+    modalPmBtn.style.display = 'inline-flex';
+    modalPmBtn.dataset.targetUserId = msg.user_id;
+    modalPmBtn.dataset.targetUserName = msg.name;
+  }
+
   modal.classList.add('visible');
   controls.autoRotate = false;
 }
@@ -1053,18 +1107,14 @@ function closeModal() {
   modal.classList.remove('visible');
   currentModalMsgId = null;
   
-  // Only reset if not in explore mode and not transitioning
   if (!state.isExploring && !state.transitioning) {
     controls.autoRotate = true;
-    
-    // Smoothly animate back to galaxy view
     const startPos = camera.position.clone();
     const startTarget = controls.target.clone();
     const endPos = new THREE.Vector3(0, 60, 140);
     const endTarget = new THREE.Vector3(0, 0, 0);
     let t = 0;
     const duration = 40;
-    
     function animateBack() {
       t++;
       const p = Math.min(t / duration, 1);
@@ -1072,9 +1122,7 @@ function closeModal() {
       camera.position.lerpVectors(startPos, endPos, ease);
       controls.target.lerpVectors(startTarget, endTarget, ease);
       controls.update();
-      if (p < 1) {
-        requestAnimationFrame(animateBack);
-      }
+      if (p < 1) requestAnimationFrame(animateBack);
     }
     animateBack();
   }
@@ -1165,7 +1213,207 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ============================================================
-// RAYCASTER & EVENT HANDLERS (Desktop + Mobile)
+// PRIVATE MESSAGE CHAT LOGIC
+// ============================================================
+
+// PM Button in Modal
+modalPmBtn.addEventListener('click', () => {
+  const targetUserId = modalPmBtn.dataset.targetUserId;
+  const targetUserName = modalPmBtn.dataset.targetUserName;
+  if (!targetUserId) return;
+  closeModal();
+  startChatWith(targetUserId, targetUserName);
+});
+
+// Chat button in HUD
+btnChat.addEventListener('click', () => {
+  openChatPanel();
+});
+
+// Chat panel close
+chatCloseBtn.addEventListener('click', closeChatPanel);
+chatBackdrop.addEventListener('click', closeChatPanel);
+
+// Back to conversation list
+chatBackBtn.addEventListener('click', () => {
+  chatDetail.style.display = 'none';
+  chatConversationsList.style.display = 'block';
+  state.currentConvId = null;
+});
+
+// Send message
+chatSendBtn.addEventListener('click', sendChatMessage);
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendChatMessage();
+  }
+});
+
+async function sendChatMessage() {
+  const text = chatInput.value.trim();
+  if (!text || !state.currentConvId) return;
+  
+  const result = await sendPrivateMessage(state.chatPartnerId, state.chatPartnerName, text);
+  if (result) {
+    state.chatMessages.push(result);
+    renderChatMessages();
+    chatInput.value = '';
+  }
+}
+
+function startChatWith(targetUserId, targetUserName) {
+  state.chatPartnerId = targetUserId;
+  state.chatPartnerName = targetUserName;
+  state.currentConvId = getConversationId(state.sessionId, targetUserId);
+  
+  chatDetailName.textContent = targetUserName;
+  chatConversationsList.style.display = 'none';
+  chatDetail.style.display = 'flex';
+  
+  loadChatHistory();
+  openChatPanel();
+}
+
+async function loadChatHistory() {
+  if (!state.currentConvId) return;
+  state.chatMessages = await loadPrivateMessages(state.currentConvId);
+  renderChatMessages();
+  await markMessagesAsRead(state.currentConvId);
+  await updateUnreadCount();
+}
+
+function renderChatMessages() {
+  chatMessages.innerHTML = '';
+  if (state.chatMessages.length === 0) {
+    chatMessages.innerHTML = '<div class="chat-messages-empty">Send a message to start the conversation!</div>';
+    return;
+  }
+  state.chatMessages.forEach(msg => {
+    const isMine = msg.sender_id === state.sessionId;
+    const el = document.createElement('div');
+    el.className = 'chat-msg' + (isMine ? ' sent' : ' received');
+    const time = new Date(msg.created_at);
+    const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const name = isMine ? 'You' : msg.sender_name;
+    el.innerHTML = `
+      <div class="chat-msg-name">${name}</div>
+      <div class="chat-msg-bubble">${msg.message}</div>
+      <div class="chat-msg-time">${timeStr}</div>
+    `;
+    chatMessages.appendChild(el);
+  });
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function openChatPanel() {
+  chatPanel.classList.add('visible');
+  // If no current conversation, show the list
+  if (!state.currentConvId) {
+    chatConversationsList.style.display = 'block';
+    chatDetail.style.display = 'none';
+  } else {
+    chatConversationsList.style.display = 'none';
+    chatDetail.style.display = 'flex';
+  }
+  renderConversations();
+  if (state.currentConvId) {
+    loadChatHistory();
+  }
+}
+
+function closeChatPanel() {
+  chatPanel.classList.remove('visible');
+}
+
+async function loadChatData() {
+  const allMessages = await loadConversations();
+  state.unreadCount = await getUnreadCount();
+  updateChatBadge();
+  
+  // Build conversation list from messages
+  const convMap = new Map();
+  allMessages.forEach(msg => {
+    const convId = msg.conversation_id;
+    if (!convMap.has(convId)) {
+      const otherId = msg.sender_id === state.sessionId ? msg.recipient_id : msg.sender_id;
+      const otherName = msg.sender_id === state.sessionId ? msg.recipient_name : msg.sender_name;
+      convMap.set(convId, {
+        conversation_id: convId,
+        otherUserId: otherId,
+        otherUserName: otherName,
+        lastMessage: msg.message,
+        lastTime: msg.created_at,
+        unread: !msg.is_read && msg.recipient_id === state.sessionId ? 1 : 0
+      });
+    } else {
+      const existing = convMap.get(convId);
+      if (new Date(msg.created_at) > new Date(existing.lastTime)) {
+        existing.lastMessage = msg.message;
+        existing.lastTime = msg.created_at;
+      }
+      if (!msg.is_read && msg.recipient_id === state.sessionId) {
+        existing.unread = (existing.unread || 0) + 1;
+      }
+    }
+  });
+  
+  state.chatConversations = Array.from(convMap.values());
+  renderConversations();
+}
+
+function renderConversations() {
+  chatConversationsList.innerHTML = '';
+  if (state.chatConversations.length === 0) {
+    chatConversationsList.innerHTML = '<div class="chat-convs-empty">No conversations yet. Click "Private Message" on a star to start chatting!</div>';
+    return;
+  }
+  state.chatConversations.forEach(conv => {
+    const item = document.createElement('div');
+    item.className = 'chat-conv-item';
+    const time = new Date(conv.lastTime);
+    const timeStr = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const unreadBadge = conv.unread > 0 ? `<span class="chat-conv-unread">${conv.unread}</span>` : '';
+    item.innerHTML = `
+      <div class="chat-conv-avatar">${conv.otherUserName.charAt(0).toUpperCase()}</div>
+      <div class="chat-conv-info">
+        <div class="chat-conv-name">${conv.otherUserName}</div>
+        <div class="chat-conv-preview">${conv.lastMessage}</div>
+      </div>
+      <div class="chat-conv-meta">
+        <div class="chat-conv-time">${timeStr}</div>
+        ${unreadBadge}
+      </div>
+    `;
+    item.addEventListener('click', () => {
+      state.currentConvId = conv.conversation_id;
+      state.chatPartnerId = conv.otherUserId;
+      state.chatPartnerName = conv.otherUserName;
+      chatDetailName.textContent = conv.otherUserName;
+      chatConversationsList.style.display = 'none';
+      chatDetail.style.display = 'flex';
+      loadChatHistory();
+    });
+    chatConversationsList.appendChild(item);
+  });
+}
+
+async function updateUnreadCount() {
+  state.unreadCount = await getUnreadCount();
+  updateChatBadge();
+}
+
+function updateChatBadge() {
+  if (state.unreadCount > 0) {
+    chatBadge.textContent = state.unreadCount > 99 ? '99+' : state.unreadCount;
+    chatBadge.style.display = 'flex';
+  } else {
+    chatBadge.style.display = 'none';
+  }
+}
+
+// ============================================================
+// RAYCASTER & EVENT HANDLERS
 // ============================================================
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -1173,14 +1421,12 @@ let hoveredStar = null;
 let touchStartPos = { x: 0, y: 0 };
 let isTouching = false;
 
-// Desktop click
 renderer.domElement.addEventListener('click', (e) => {
   pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
   handleStarClick();
 });
 
-// Mobile touch
 renderer.domElement.addEventListener('touchstart', (e) => {
   const touch = e.touches[0];
   touchStartPos.x = touch.clientX;
@@ -1202,15 +1448,12 @@ renderer.domElement.addEventListener('touchend', (e) => {
   const touch = e.changedTouches[0];
   const dx = Math.abs(touch.clientX - touchStartPos.x);
   const dy = Math.abs(touch.clientY - touchStartPos.y);
-  // Only handle as tap if not a drag (movement less than 15px)
   if (dx < 15 && dy < 15) {
     handleStarClick();
   }
 }, { passive: true });
 
-// Hover (desktop only) - using pointermove for both mouse and touch
 renderer.domElement.addEventListener('pointermove', (e) => {
-  // Only update for mouse events, not touch
   if (e.pointerType === 'mouse') {
     pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -1222,10 +1465,8 @@ function handleStarClick() {
   if (state.isExploring) {
     stopExplore();
   }
-  
   raycaster.setFromCamera(pointer, camera);
   const intersects = raycaster.intersectObjects(starGroup.children);
-  
   if (intersects.length > 0) {
     const hit = intersects[0].object;
     const msg = state.starDataMap.get(hit.uuid);
@@ -1244,7 +1485,6 @@ function animateToStar(msg, hit) {
   const endTarget = targetPos.clone();
   let t = 0;
   const duration = 60;
-
   function animateCamera() {
     t++;
     const p = Math.min(t / duration, 1);
@@ -1262,7 +1502,6 @@ function animateToStar(msg, hit) {
   animateCamera();
 }
 
-// Also handle click on the canvas for the explore stop
 renderer.domElement.addEventListener('click', () => {
   if (state.isExploring) {
     stopExplore();
@@ -1306,9 +1545,7 @@ function startBgMusic() {
 }
 
 function loadBgMusic(index) {
-  if (index >= SOUND_FILES.length) {
-    return;
-  }
+  if (index >= SOUND_FILES.length) return;
   try {
     bgAudio = new Audio(SOUND_FILES[index]);
     bgAudio.loop = true;
@@ -1341,25 +1578,21 @@ async function playChime() {
     const osc2 = audioCtx.createOscillator();
     osc.type = 'sine';
     osc2.type = 'sine';
-    
     const now = audioCtx.currentTime;
     osc.frequency.setValueAtTime(880 + Math.random() * 440, now);
     osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
     osc2.frequency.setValueAtTime(1320 + Math.random() * 220, now);
     osc2.frequency.exponentialRampToValueAtTime(1800, now + 0.08);
-    
     const gain = audioCtx.createGain();
     const gain2 = audioCtx.createGain();
     gain.gain.setValueAtTime(0.15, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
     gain2.gain.setValueAtTime(0.08, now);
     gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-    
     osc.connect(gain);
     osc2.connect(gain2);
     gain.connect(audioCtx.destination);
     gain2.connect(audioCtx.destination);
-    
     osc.start(now);
     osc2.start(now);
     osc.stop(now + 0.8);
@@ -1375,19 +1608,15 @@ async function playCommentChime() {
     }
     const osc = audioCtx.createOscillator();
     osc.type = 'sine';
-    
     const now = audioCtx.currentTime;
     osc.frequency.setValueAtTime(1320, now);
     osc.frequency.exponentialRampToValueAtTime(1760, now + 0.06);
     osc.frequency.exponentialRampToValueAtTime(1560, now + 0.15);
-    
     const gain = audioCtx.createGain();
     gain.gain.setValueAtTime(0.05, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-    
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    
     osc.start(now);
     osc.stop(now + 0.4);
   } catch (e) {}
@@ -1438,12 +1667,10 @@ function doExploreStep() {
     stopExplore();
     return;
   }
-  // Filter out stars that have already been explored this session
   const unvisited = visible.filter(s => {
     const m = state.starDataMap.get(s.uuid);
     return m && !state.exploredStarIds.has(m.id);
   });
-  // If all stars have been visited, stop exploring with a message
   if (unvisited.length === 0) {
     showToast('✦ You\'ve explored all visible stars! Click Explore again to restart.');
     stopExplore();
@@ -1453,7 +1680,6 @@ function doExploreStep() {
   const msg = state.starDataMap.get(star.uuid);
   if (!msg) { scheduleExplore(); return; }
   state.exploredStarIds.add(msg.id);
-
   state.transitioning = true;
   const targetPos = new THREE.Vector3().copy(star.position);
   const startPos = camera.position.clone();
@@ -1462,7 +1688,6 @@ function doExploreStep() {
   const endTarget = targetPos.clone();
   let t = 0;
   const duration = 50;
-
   function animExplore() {
     t++;
     const p = Math.min(t / duration, 1);
@@ -1568,8 +1793,6 @@ btnRefresh.addEventListener('click', async () => {
   controls.target.set(0, 0, 0);
   controls.update();
   state.currentFilter = null;
-  state.searchQuery = '';
-  searchInput.value = '';
 
   const stars = await loadMessages();
   state.messages = stars;
@@ -1586,7 +1809,7 @@ btnRefresh.addEventListener('click', async () => {
 });
 
 // ============================================================
-// DELETE CONFIRM MODAL (SIMPLE & CLEAN)
+// DELETE CONFIRM MODAL
 // ============================================================
 let pendingDeleteStarId = null;
 let pendingDeleteStarMsg = null;
@@ -1594,7 +1817,6 @@ let pendingDeleteStarMsg = null;
 function showDeleteConfirm(msg) {
   pendingDeleteStarId = msg.id;
   pendingDeleteStarMsg = msg;
-  
   deleteConfirmPreview.textContent = `"${msg.text.length > 80 ? msg.text.substring(0, 80) + '...' : msg.text}"`;
   deleteConfirmModal.classList.add('visible');
   deleteConfirmBackdrop.classList.add('visible');
@@ -1618,10 +1840,8 @@ document.addEventListener('keydown', (e) => {
 
 deleteConfirmDelete.addEventListener('click', async () => {
   if (!pendingDeleteStarId) return;
-  
   const msg = pendingDeleteStarMsg;
   const success = await deleteMessage(msg.id);
-  
   if (success) {
     closeModal();
     closeMyStars();
@@ -1630,7 +1850,6 @@ deleteConfirmDelete.addEventListener('click', async () => {
     renderMyStars();
     showToast('💫 Star deleted from the galaxy');
   }
-  
   hideDeleteConfirm();
 });
 
@@ -1711,7 +1930,6 @@ function renderMyStars() {
         const endTarget = targetPos.clone();
         let t = 0;
         const duration = 50;
-
         function anim() {
           t++;
           const p = Math.min(t / duration, 1);
@@ -1720,8 +1938,7 @@ function renderMyStars() {
           controls.target.lerpVectors(startTarget, endTarget, ease);
           controls.update();
           if (p < 1) requestAnimationFrame(anim);
-          else { state.transitioning = false;
-            openModal(msg); }
+          else { state.transitioning = false; openModal(msg); }
         }
         anim();
       }
@@ -1791,7 +2008,7 @@ window.addEventListener('resize', () => {
 });
 
 // ============================================================
-// ANIMATION LOOP — ENHANCED GLOWING EFFECTS
+// ANIMATION LOOP
 // ============================================================
 function animate() {
   requestAnimationFrame(animate);
@@ -1802,26 +2019,22 @@ function animate() {
     const msg = state.starDataMap.get(sprite.uuid);
     const isMyStar = ud.isMyStar && msg;
 
-    // Enhanced pulsing for more dynamic glow
     const pulseSpeed = isMyStar ? 2.0 : 1.5;
     const pulseAmount = isMyStar ? 0.25 : 0.2;
     const basePulse = 1.0 + pulseAmount * Math.sin(state.animTime * pulseSpeed + ud.phase);
     
-    // Float motion
     const floatSpeed = isMyStar ? 1.0 : 0.6;
     const floatAmount = isMyStar ? 2.0 : 0.6;
     if (msg && msg._pos) {
       sprite.position.y = msg._pos.y + Math.sin(state.animTime * floatSpeed + ud.phase) * floatAmount;
     }
 
-    // Scale with pulse for "breathing" glow effect
     if (hoveredStar === sprite) {
       sprite.scale.setScalar(ud.baseScale * 2.8);
       sprite.material.opacity = 1.0;
     } else {
       const targetScale = ud.baseScale * (0.9 + 0.15 * Math.sin(state.animTime * 3 + ud.phase));
       sprite.scale.setScalar(targetScale);
-      // Opacity varies slightly for twinkle effect
       sprite.material.opacity = 0.85 + 0.15 * Math.sin(state.animTime * 2.5 + ud.phase);
     }
   });
@@ -1845,9 +2058,7 @@ function animate() {
     controls.autoRotate = true;
   }
 
-  // Update falling stars
   updateFallingStars();
-
   controls.update();
   composer.render();
 }
@@ -1909,6 +2120,45 @@ function setupRealtimeSubscriptions() {
 
         const name = newComment.name || 'Someone';
         showToast(`💬 ${name} left a message on a star`);
+      }
+    )
+    .subscribe();
+
+  // Private messages realtime
+  supabase
+    .channel('private-messages-realtime')
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'private_messages' },
+      async (payload) => {
+        const newMsg = payload.new;
+        if (newMsg.recipient_id !== state.sessionId && newMsg.sender_id !== state.sessionId) return;
+
+        if (newMsg.recipient_id === state.sessionId) {
+          // We received a new message
+          if (state.soundOn) {
+            await initAudio();
+            playCommentChime();
+          }
+
+          await loadChatData();
+
+          // If we're currently viewing this conversation, reload and mark as read
+          if (state.currentConvId === newMsg.conversation_id && chatPanel.classList.contains('visible')) {
+            state.chatMessages.push(newMsg);
+            renderChatMessages();
+            await markMessagesAsRead(state.currentConvId);
+            await updateUnreadCount();
+          } else {
+            // Update badge only
+            state.unreadCount++;
+            updateChatBadge();
+            showToast(`💬 ${newMsg.sender_name} sent you a private message`);
+          }
+        } else if (newMsg.sender_id === state.sessionId && state.currentConvId === newMsg.conversation_id) {
+          // We sent a message, add it to the chat
+          state.chatMessages.push(newMsg);
+          renderChatMessages();
+        }
       }
     )
     .subscribe();
@@ -1988,11 +2238,9 @@ function setupSupportToggle() {
 
   if (supportToggle && supportContent) {
     let isOpen = false;
-    
     supportToggle.addEventListener('click', (e) => {
       e.stopPropagation();
       isOpen = !isOpen;
-      
       if (isOpen) {
         supportContent.classList.add('visible');
         if (supportArrow) supportArrow.classList.add('open');

@@ -1,0 +1,72 @@
+-- ============================================================
+-- SOULVERSE PRIVATE CHAT SYSTEM
+-- ============================================================
+-- Run this in your Supabase SQL Editor
+
+-- ============================================================
+-- PRIVATE MESSAGES TABLE
+-- ============================================================
+-- DROP TABLE IF EXISTS private_messages CASCADE;
+
+CREATE TABLE IF NOT EXISTS private_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sender_id TEXT NOT NULL,
+  sender_name VARCHAR(100) DEFAULT 'Anonymous',
+  recipient_id TEXT NOT NULL,
+  recipient_name VARCHAR(100) DEFAULT 'Anonymous',
+  message TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT FALSE,
+  conversation_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_pm_conversation_id ON private_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_pm_recipient_id ON private_messages(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_pm_sender_id ON private_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_pm_created_at ON private_messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pm_is_read ON private_messages(is_read);
+CREATE INDEX IF NOT EXISTS idx_pm_conversation_created ON private_messages(conversation_id, created_at DESC);
+
+-- ============================================================
+-- RLS POLICIES
+-- ============================================================
+ALTER TABLE private_messages ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can read private messages (since we use session IDs for auth)
+DROP POLICY IF EXISTS "Anyone can read private messages" ON private_messages;
+CREATE POLICY "Anyone can read private messages"
+  ON private_messages FOR SELECT
+  USING (true);
+
+-- Anyone can insert private messages
+DROP POLICY IF EXISTS "Anyone can insert private messages" ON private_messages;
+CREATE POLICY "Anyone can insert private messages"
+  ON private_messages FOR INSERT
+  WITH CHECK (true);
+
+-- Anyone can update (for marking messages as read)
+DROP POLICY IF EXISTS "Anyone can update private messages" ON private_messages;
+CREATE POLICY "Anyone can update private messages"
+  ON private_messages FOR UPDATE
+  USING (true)
+  WITH CHECK (true);
+
+-- ============================================================
+-- GRANT PERMISSIONS
+-- ============================================================
+GRANT ALL ON TABLE private_messages TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- ============================================================
+-- ENABLE REALTIME (if not already enabled for this table)
+-- ============================================================
+-- You may need to enable the replication for this table in Supabase:
+-- Go to Database > Replication and add the private_messages table
+-- Or run: ALTER PUBLICATION supabase_realtime ADD TABLE private_messages;
+
+-- ============================================================
+-- DONE
+-- ============================================================
+SELECT 'Private chat system schema created successfully!' as status;
+
