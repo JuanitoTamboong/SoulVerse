@@ -39,6 +39,14 @@
 - All necessary CSS (edit/delete hover styles, edited badge, deleted message styling) was already present in `style.css`
 - No additional CSS changes needed
 
+### 8. ✅ Fixed "Replies Not Appearing in Chat Box / No Notifications" Bug
+- **Rebuilt the broken `private-messages-realtime` INSERT subscription** — The orphaned JavaScript code after `comments-realtime` (missing `.channel()` header) was replaced with a complete subscription that:
+  - Skips own messages (already added locally)
+  - Only processes messages addressed to the current user
+  - If viewing that conversation: appends message live and marks as read
+  - Otherwise: calls `loadChatData()` to refresh conversations list, increments unread count, updates badge, and shows toast notification
+- **Added `await loadChatData()` to `openChatPanel()`** — Ensures the conversation list is always fresh when the user opens the chat panel
+
 ## Run in Supabase SQL Editor
 Execute the new functions from `sql-schema/private-chat-system.txt` (the `update_private_message` and `delete_private_message` functions at the bottom)
 

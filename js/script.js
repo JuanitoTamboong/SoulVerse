@@ -355,6 +355,22 @@ async function saveComment(starId, text, name) {
   }
 }
 
+async function deleteComment(commentId) {
+  try {
+    const { error } = await supabase
+      .from('comments')
+      .delete()
+      .eq('id', commentId)
+      .eq('user_id', state.sessionId);
+
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    showToast('⚠️ Failed to delete message');
+    return false;
+  }
+}
+
 // ============================================================
 // PRIVATE MESSAGING SUPABASE OPERATIONS
 // ============================================================
@@ -1193,6 +1209,7 @@ function renderComments(comments) {
     const initial = (c.name && c.name !== 'Anonymous') ? c.name.charAt(0).toUpperCase() : '?';
     const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const mineBadge = isMine ? '<span class="comment-mine-badge">you</span>' : '';
+    const deleteBtnHtml = isMine ? `<button class="comment-delete-btn" data-comment-id="${c.id}" title="Delete comment">✕</button>` : '';
     el.innerHTML = `
       <div class="comment-avatar">${initial}</div>
       <div class="comment-bubble">
@@ -1201,10 +1218,28 @@ function renderComments(comments) {
             ${c.name} ${mineBadge}
           </span>
           <span class="comment-time">${timeStr}</span>
+          ${deleteBtnHtml}
         </div>
         <div class="comment-text">${c.text}</div>
       </div>
     `;
+    
+    // Attach delete handler
+    if (isMine) {
+      const deleteBtn = el.querySelector('.comment-delete-btn');
+      deleteBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const confirmed = confirm('Delete this comment?');
+        if (!confirmed) return;
+        const success = await deleteComment(c.id);
+        if (success) {
+          currentModalComments = currentModalComments.filter(cc => cc.id !== c.id);
+          renderComments(currentModalComments);
+          showToast('🗑️ Comment deleted');
+        }
+      });
+    }
+    
     commentsList.appendChild(el);
   });
   commentsList.scrollTop = commentsList.scrollHeight;
@@ -1519,10 +1554,10 @@ function renderConversations() {
   }
   state.chatConversations.forEach(conv => {
     const item = document.createElement('div');
-    item.className = 'chat-conv-item';
+    item.className = 'chat-conv-item' + (conv.unread > 0 ? ' unread' : '');
     const time = new Date(conv.lastTime);
     const timeStr = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const unreadBadge = conv.unread > 0 ? `<span class="chat-conv-unread">${conv.unread}</span>` : '';
+    const unreadBadge = conv.unread > 0 ? `<span class="chat-conv-unread-badge">${conv.unread}</span>` : '';
     item.innerHTML = `
       <div class="chat-conv-avatar">${conv.otherUserName.charAt(0).toUpperCase()}</div>
       <div class="chat-conv-info">
