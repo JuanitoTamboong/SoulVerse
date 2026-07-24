@@ -87,6 +87,7 @@ const state = {
   soundOn: true,
   searchQuery: '',
   // Chat state
+  initialZoomInProgress: false,
   chatConversations: [],
   chatMessages: [],
   currentConvId: null,
@@ -548,7 +549,8 @@ async function initializeApp() {
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 60, 140);
+// Start very close to the galaxy center for the dramatic zoom-out effect
+camera.position.set(0, 20, 30);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -560,8 +562,8 @@ galaxyView.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
-controls.minDistance = 15;
-controls.maxDistance = 350;
+controls.minDistance = 50;
+controls.maxDistance = 500;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 0.35;
 controls.target.set(0, 0, 0);
@@ -1175,7 +1177,7 @@ function closeModal() {
     controls.autoRotate = true;
     const startPos = camera.position.clone();
     const startTarget = controls.target.clone();
-    const endPos = new THREE.Vector3(0, 60, 140);
+    const endPos = new THREE.Vector3(0, 120, 280);
     const endTarget = new THREE.Vector3(0, 0, 0);
     let t = 0;
     const duration = 40;
@@ -1977,7 +1979,7 @@ btnBack.addEventListener('click', () => {
   hud.style.display = 'none';
   closeModal();
   controls.autoRotate = true;
-  camera.position.set(0, 60, 140);
+  camera.position.set(0, 120, 280);
   controls.target.set(0, 0, 0);
   controls.update();
 });
@@ -1989,7 +1991,7 @@ btnRefresh.addEventListener('click', async () => {
   closeModal();
   stopExplore();
   controls.autoRotate = true;
-  camera.position.set(0, 60, 140);
+  camera.position.set(0, 120, 280);
   controls.target.set(0, 0, 0);
   controls.update();
   state.currentFilter = null;
@@ -2208,6 +2210,52 @@ window.addEventListener('resize', () => {
 });
 
 // ============================================================
+// INITIAL ZOOM-OUT ANIMATION
+// ============================================================
+function startInitialZoomAnimation() {
+  state.initialZoomInProgress = true;
+  controls.autoRotate = false;
+  controls.enableRotate = false;
+  controls.enableZoom = false;
+  controls.enablePan = false;
+
+  const startPos = new THREE.Vector3(0, 20, 30);
+  const endPos = new THREE.Vector3(0, 120, 280);
+  const startTarget = new THREE.Vector3(0, 0, 0);
+  const endTarget = new THREE.Vector3(0, 0, 0);
+  
+  camera.position.copy(startPos);
+  controls.target.copy(startTarget);
+  controls.update();
+
+  let t = 0;
+  const duration = 180; // ~3 seconds at 60fps
+
+  function zoomStep() {
+    t++;
+    const p = Math.min(t / duration, 1);
+    // Ease-out cubic: fast start, slow end
+    const ease = 1 - Math.pow(1 - p, 3);
+    
+    camera.position.lerpVectors(startPos, endPos, ease);
+    controls.target.lerpVectors(startTarget, endTarget, ease);
+    controls.update();
+
+    if (p < 1) {
+      requestAnimationFrame(zoomStep);
+    } else {
+      state.initialZoomInProgress = false;
+      controls.enableRotate = true;
+      controls.enableZoom = true;
+      controls.enablePan = true;
+      controls.autoRotate = true;
+    }
+  }
+
+  requestAnimationFrame(zoomStep);
+}
+
+// ============================================================
 // ANIMATION LOOP
 // ============================================================
 function animate() {
@@ -2254,7 +2302,7 @@ function animate() {
     }
   }
 
-  if (!modal.classList.contains('visible') && !state.transitioning) {
+  if (!modal.classList.contains('visible') && !state.transitioning && !state.initialZoomInProgress) {
     controls.autoRotate = true;
   }
 
@@ -2477,6 +2525,8 @@ async function init() {
 
   setTimeout(() => {
     loadingScreen.classList.add('hidden');
+    // Start the dramatic zoom-out animation after the loading screen hides
+    startInitialZoomAnimation();
   }, 1500);
 
   animate();
