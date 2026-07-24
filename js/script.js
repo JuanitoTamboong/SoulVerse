@@ -78,6 +78,7 @@ const state = {
   cameraTargetPos: null,
   transitioning: false,
   myStarIds: new Set(),
+  exploredStarIds: new Set(),
   isNewUser: true,
   loading: false,
   sessionId: null,
@@ -1152,6 +1153,7 @@ btnExplore.addEventListener('click', () => {
 
 function startExplore() {
   state.isExploring = true;
+  state.exploredStarIds = new Set();
   btnExplore.textContent = '⏹ Stop';
   doExploreStep();
 }
@@ -1169,9 +1171,21 @@ function doExploreStep() {
     stopExplore();
     return;
   }
-  const star = visible[Math.floor(Math.random() * visible.length)];
+  // Filter out stars that have already been explored this session
+  const unvisited = visible.filter(s => {
+    const m = state.starDataMap.get(s.uuid);
+    return m && !state.exploredStarIds.has(m.id);
+  });
+  // If all stars have been visited, stop exploring with a message
+  if (unvisited.length === 0) {
+    showToast('✦ You\'ve explored all visible stars! Click Explore again to restart.');
+    stopExplore();
+    return;
+  }
+  const star = unvisited[Math.floor(Math.random() * unvisited.length)];
   const msg = state.starDataMap.get(star.uuid);
   if (!msg) { scheduleExplore(); return; }
+  state.exploredStarIds.add(msg.id);
 
   state.transitioning = true;
   const targetPos = new THREE.Vector3().copy(star.position);
