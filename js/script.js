@@ -843,6 +843,25 @@ function startFallingStarSpawner() {
   }, 1000 + Math.random() * 2000);
 }
 
+// Stable hash from star ID to deterministic pseudo-random values
+function starHash(starId) {
+  let hash = 0;
+  const str = String(starId);
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  // Simple LCG to generate multiple independent values from one seed
+  function lcg(seed) {
+    return function() {
+      seed = (seed * 1664525 + 1013904223) & 0x7fffffff;
+      return (seed >>> 0) / 0x7fffffff;
+    };
+  }
+  return lcg(hash);
+}
+
 function buildStars() {
   while (starGroup.children.length) {
     const child = starGroup.children[0];
@@ -874,16 +893,32 @@ function buildStars() {
   }
 
   // Minimum distance from galaxy center to keep stars out of bright core glow
-  const MIN_RADIUS = 28;
+  const MIN_RADIUS = 20;
+  const MAX_RADIUS = 200;
 
-  filteredMsgs.forEach((msg, idx) => {
-    const targetT = filteredMsgs.length > 1 ? idx / (filteredMsgs.length - 1) : 0.5;
-    const angle = targetT * Math.PI * 2 * GALAXY_ARMS + (Math.random() - 0.5) * 0.2;
-    const radius = MIN_RADIUS + targetT * (GALAXY_RADIUS - MIN_RADIUS) + (Math.random() - 0.5) * 5;
+  filteredMsgs.forEach((msg) => {
+    // Use stable deterministic position based on star's unique ID
+    const rng = starHash(msg.id);
+    
+    // Each star gets a fixed radial band with natural spread
+    const radiusNorm = rng(); // 0..1 — permanent random radius position
+    const radius = MIN_RADIUS + radiusNorm * (MAX_RADIUS - MIN_RADIUS);
+    
+    // Assign to one of the spiral arms, but with generous angular spread
+    const armIndex = Math.floor(rng() * GALAXY_ARMS);
+    const armAngle = (armIndex / GALAXY_ARMS) * Math.PI * 2;
+    // Stars cluster loosely around the arm, not perfectly on it
+    const angleSpread = 0.6 + rng() * 1.0; // generous radian spread per arm
+    const angle = armAngle + (rng() - 0.5) * angleSpread;
+    
+    // Height with natural vertical spread — thicker near center, thinner at edges
+    const heightFactor = 1.0 - radiusNorm * 0.5; // more vertical spread inward
+    const yOffset = (rng() - 0.5) * GALAXY_THICKNESS * heightFactor;
+    
     msg._pos = {
-      x: Math.cos(angle) * radius + (Math.random() - 0.5) * 3,
-      y: (Math.random() - 0.5) * GALAXY_THICKNESS * 0.5,
-      z: Math.sin(angle) * radius + (Math.random() - 0.5) * 3,
+      x: Math.cos(angle) * radius + (rng() - 0.5) * 8,
+      y: yOffset + (rng() - 0.5) * 3,
+      z: Math.sin(angle) * radius + (rng() - 0.5) * 8,
     };
   });
 
@@ -899,14 +934,16 @@ function buildStars() {
     });
     const sprite = new THREE.Sprite(mat);
     
-    // INCREASED STAR SIZES — MUCH LARGER AND MORE VISIBLE
+    // Stable size and phase from ID hash too
+    const rng = starHash(msg.id + '_size');
     const baseScale = isMyStar ?
-      6.0 + Math.random() * 3.0 :
-      3.5 + Math.random() * 2.5;
+      4.5 + rng() * 4.5 :
+      2.5 + rng() * 3.5;
+    const phase = rng() * Math.PI * 2;
     
     sprite.scale.set(baseScale, baseScale, 1);
     sprite.position.set(msg._pos.x, msg._pos.y, msg._pos.z);
-    sprite.userData = { msgId: msg.id, baseScale, phase: Math.random() * Math.PI * 2, isMyStar };
+    sprite.userData = { msgId: msg.id, baseScale, phase, isMyStar };
     starGroup.add(sprite);
     state.starMeshes.push(sprite);
     state.starDataMap.set(sprite.uuid, msg);
