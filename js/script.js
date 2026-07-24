@@ -341,8 +341,13 @@ async function initializeApp() {
   // Check if user has dismissed the landing before
   const landingDismissed = localStorage.getItem('soulverse_landing_dismissed') === 'true';
 
-  // Show landing for new users (no stars of their own) who haven't dismissed it
-  if (state.myStarIds.size === 0 && !landingDismissed) {
+  // Check if coming back from support-dev page (show landing again for new users)
+  const urlParams = new URLSearchParams(window.location.search);
+  const showLanding = urlParams.get('showLanding') === 'true';
+
+  // Show landing for new users (no stars of their own) who haven't dismissed it,
+  // OR if returning from support-dev page
+  if ((state.myStarIds.size === 0 && !landingDismissed) || (state.myStarIds.size === 0 && showLanding)) {
     landingScreen.classList.remove('hidden');
     hud.style.display = 'none';
   } else {
