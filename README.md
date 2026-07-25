@@ -49,15 +49,29 @@ Every emotion — whether happy, sad, anxious, or grateful — adds to the colle
 - Send "light" (likes) to stars you appreciate
 - Real-time comment updates via Supabase subscriptions
 
+### 💬 Private Chat System
+- Click **"Private Message"** on any star to start a direct conversation with the author
+- Real-time private messaging with live message delivery
+- **Edit** your sent messages inline
+- **Delete** messages (soft-delete — both parties see deletion)
+- Unread message count badge on the Chat HUD button
+- Auto-scroll to latest messages
+
+### ✨ Falling Stars Animation
+- Ambient falling stars streak across the galaxy background
+- Randomized spawn intervals, trajectories, and lifetimes
+- Glowing head sprites with trailing particle effects
+- Auto-capped to prevent performance degradation (max 5 active)
+
 ### 🎲 Explore Mode
 - Auto-pilot mode that randomly navigates through stars
 - Each star is displayed for a few seconds before moving to the next
 - Click anywhere or press Stop to exit explore mode
 
 ### 🎵 Immersive Audio
-- Background ambient music (2 tracks included)
-- Chime sound when a new star is created
-- Soft chime when comments are left on stars
+- Background ambient music (2 tracks included: `sv-sound.mp3`, `sv2-sound.mp3`)
+- Procedural chime sound (Web Audio API) when a new star is created
+- Soft chime (Web Audio API) when comments are left on stars
 - Toggle sound on/off via HUD button
 
 ### ⭐ My Stars Management
@@ -75,8 +89,8 @@ Every emotion — whether happy, sad, anxious, or grateful — adds to the colle
 ### 🔄 Real-Time Updates
 - New stars from other users appear in real time
 - Comments appear live without page refresh
-- Polling fallback every 10 seconds for new stars
-- Toast notifications for new stars and comments
+- Polling fallback every **4 seconds** for new stars (2s initial delay)
+- Toast notifications for new stars, comments, and private messages
 
 ---
 
@@ -90,6 +104,7 @@ Every emotion — whether happy, sad, anxious, or grateful — adds to the colle
 | **Supabase** | Backend database, RLS, real-time subscriptions |
 | **PostgreSQL** | Database (stars, comments, user_stats tables) |
 | **Web Audio API** | Sound effects and background music |
+| **Canvas API** | Procedural star and falling star textures |
 | **CSS Glassmorphism** | UI design pattern for modals and panels |
 
 ---
@@ -121,7 +136,11 @@ SoulVerse/
 │   └── sv2-sound.mp3           # Background music track 2
 │
 └── sql-schema/
-    └── SoulVerse Database Schema v1.0.txt   # Full Supabase/PostgreSQL schema
+    ├── SoulVerse Database Schema v1.0.txt   # Full Supabase/PostgreSQL schema
+    ├── private-chat-system.txt              # Private messaging schema & RPC functions
+    ├── ban-spammer.txt                      # SQL utility for spam management
+    ├── delete-own-stars.txt                 # SQL utility for bulk star deletion
+    └── Fix RLS Policies for SoulVerse.txt   # RLS policy fixes documentation
 ```
 
 ---
@@ -188,25 +207,40 @@ SoulVerse uses **Supabase** (PostgreSQL) with the following tables:
 | `created_at` | TIMESTAMPTZ | Account creation time |
 | `updated_at` | TIMESTAMPTZ | Last update timestamp |
 
+### `private_messages`
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID (PK) | Unique message identifier |
+| `sender_id` | TEXT | Sender's session ID |
+| `sender_name` | VARCHAR(100) | Sender's display name |
+| `recipient_id` | TEXT | Recipient's session ID |
+| `recipient_name` | VARCHAR(100) | Recipient's display name |
+| `message` | TEXT | Message content |
+| `is_read` | BOOLEAN | Whether the message has been read |
+| `is_edited` | BOOLEAN | Whether the message has been edited |
+| `is_deleted` | BOOLEAN | Soft-delete flag (shows placeholder) |
+| `conversation_id` | TEXT | Unique conversation identifier (sorted sender+recipient IDs joined by `_`) |
+| `created_at` | TIMESTAMPTZ | When the message was sent |
+
 **Row Level Security (RLS)** is enabled on all tables with policies that allow public read, public insert, and user-scoped update/delete.
 
 ---
 
 ## 🎨 Emotion Colors
 
-| Emotion | Color | Hex |
-|---|---|---|
-| Happy | Gold | `#FFD700` |
-| Sad | Slate Blue | `#6A5ACD` |
-| Angry | Orange Red | `#FF4500` |
-| Anxious | Dark Turquoise | `#00CED1` |
-| Excited | Hot Pink | `#FF69B4` |
-| Grateful | Lime Green | `#32CD32` |
-| Hopeful | Orange | `#FFA500` |
-| Lonely | Silver | `#C0C0C0` |
-| Love | Deep Pink | `#FF1493` |
-| Peaceful | Sky Blue | `#87CEEB` |
-| General | Soft Purple | `#A78BFA` |
+| Emotion | Icon | Color | Hex |
+|---|---|---|---|
+| General | ✦ | Soft Purple | `#A78BFA` |
+| Happy | 😊 | Gold | `#FFD700` |
+| Sad | 😢 | Slate Blue | `#6A5ACD` |
+| Angry | 😠 | Orange Red | `#FF4500` |
+| Anxious | 😰 | Dark Turquoise | `#00CED1` |
+| Excited | 🤩 | Hot Pink | `#FF69B4` |
+| Grateful | 🙏 | Lime Green | `#32CD32` |
+| Hopeful | 🌟 | Orange | `#FFA500` |
+| Lonely | 💔 | Silver | `#C0C0C0` |
+| Love | ❤️ | Deep Pink | `#FF1493` |
+| Peaceful | 🕊️ | Sky Blue | `#87CEEB` |
 
 ---
 
@@ -217,7 +251,11 @@ SoulVerse uses **Supabase** (PostgreSQL) with the following tables:
 | Rotate galaxy | Click & drag | Touch & drag |
 | Zoom | Scroll | Pinch |
 | Select a star | Click | Tap |
-| Close modal | Click ✕ / Press Escape | Tap ✕ |
+| Search stars | Type in search bar | Type in search bar |
+| Filter by emotion | Click emotion pill | Tap emotion pill |
+| View my stars | Click "My Stars" pill | Tap "My Stars" pill |
+| Open chat / messages | Click "Chat" button | Tap "Chat" button |
+| Send private message | Click "Private Message" in star modal | Tap "Private Message" in star modal |
 | Explore mode | Click "Explore" button | Tap "Explore" button |
 | Toggle sound | Click sound button | Tap sound button |
 | Manage my stars | Click "Manage" button | Tap "Manage" button |
