@@ -1,18 +1,21 @@
-# Fix Explore Icons - TODO
+# SoulVerse Fixes - TODO
 
-## Problem
-Explore button's SVG icon gets wiped out because `startExplore()` / `stopExplore()` use `.textContent =` which replaces the entire inner HTML.
+## ✅ Completed
 
-## Steps
+### Database Schema Fixes
+- [x] Created `sql-schema/fix-stars-missing-columns.sql` — Adds `profile_pic`, `bio`, `display_name`, `gallery` columns to the existing `stars` table
+- [x] `sql-schema/profile-gallery-schema.sql` already run to create the `profiles` table
 
-### Step 1: Update `index.html`
-- [x] Removed SVG icon from Explore button
-- [x] Added 🎲 emoji to span text: `<span id="explore-text">🎲 Explore</span>`
+### JavaScript Fixes (js/script.js)
+- [x] `loadProfileFromSupabase` — Changed from `.single()` to `.maybeSingle()` to avoid 406 error when no profile exists
+- [x] Added graceful handling of `PGRST205` (schema cache) and `PGRST116` (no rows) errors
+- [x] `saveProfileToSupabase` — Added retry logic with 1s delay when schema cache is stale
+- [x] `updateProfileUI` — Added inline avatar remove button, gallery delete buttons with hover/click functionality
 
-### Step 2: Update `js/script.js`
-- [x] Add DOM reference: `const exploreText = $('#explore-text');`
-- [x] Update `startExplore()`: Change span text to "⏹ Stop" 
-- [x] Update `stopExplore()`: Change span text to "🎲 Explore"
-- [x] Removed `EXPLORE_ORIGINAL_SVG_HTML` and `EXPLORE_STOP_SVG_HTML` constants
-- [x] Removed `exploreSvg` DOM reference
+### CSS (css/style.css)
+- [x] Fixed `.profile-avatar-preview` styling (was broken with `flex-direction: column`)
 
+## ⏳ Pending (User Action Required)
+
+### Run the SQL fix
+Copy and run the contents of `sql-schema/fix-stars-missing-columns.sql` in your Supabase SQL Editor

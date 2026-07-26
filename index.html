@@ -94,6 +94,14 @@
       </svg>
       <span>Manage</span>
     </button>
+
+    <button class="hud-btn" id="btn-profile">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      <span>Profile</span>
+    </button>
     
     <button class="hud-btn" id="btn-chat">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -140,6 +148,9 @@
         <button class="modal-like-btn" id="modal-like-btn">
           💡 <span id="modal-like-count">0</span> Send Light
         </button>
+        <button class="modal-view-profile-btn" id="modal-view-profile-btn" style="display:none;">
+          👤 View Profile
+        </button>
         <button class="modal-pm-btn" id="modal-pm-btn">
           💬 Private Message
         </button>
@@ -178,6 +189,96 @@
         <button class="delete-confirm-cancel-btn" id="delete-confirm-cancel">Cancel</button>
         <button class="delete-confirm-delete-btn" id="delete-confirm-delete">✕ Delete Forever</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ====== PROFILE PANEL ====== -->
+  <div id="profile-panel">
+    <div class="backdrop" id="profile-backdrop"></div>
+    <div class="profile-card">
+      <div class="profile-header">
+        <h2>👤 My Profile</h2>
+        <button class="profile-close-btn" id="profile-close-btn">✕</button>
+      </div>
+      <div class="profile-body">
+        <!-- Avatar upload area -->
+        <div class="profile-avatar-section">
+          <div class="profile-avatar-wrapper" id="profile-avatar-wrapper">
+            <div class="profile-avatar-preview" id="profile-avatar-preview">
+              <div class="profile-avatar-placeholder">📷</div>
+            </div>
+            <div class="profile-avatar-overlay" id="profile-avatar-overlay">
+              <span>Change Photo</span>
+            </div>
+            <input type="file" id="profile-avatar-input" accept="image/*" style="display:none;" />
+          </div>
+          <div class="profile-avatar-hint">Click to upload. Max 1MB. Will be compressed.</div>
+        </div>
+
+        <!-- Display name -->
+        <div class="profile-field">
+          <label class="profile-label">Display Name</label>
+          <input class="profile-input" id="profile-name-input" type="text" placeholder="Your display name" maxlength="50" />
+        </div>
+
+        <!-- Bio -->
+        <div class="profile-field">
+          <label class="profile-label">Bio</label>
+          <textarea class="profile-textarea" id="profile-bio-input" placeholder="Tell the galaxy about yourself..." maxlength="200" rows="3"></textarea>
+        </div>
+
+        <!-- Gallery section -->
+        <div class="profile-gallery-section">
+          <div class="profile-gallery-header">
+            <h3>🖼️ My Gallery</h3>
+            <button class="profile-gallery-add-btn" id="profile-gallery-add-btn">+ Add Image</button>
+            <input type="file" id="profile-gallery-input" accept="image/*" style="display:none;" />
+          </div>
+          <div class="profile-gallery-grid" id="profile-gallery-grid">
+            <div class="profile-gallery-empty">No images yet. Click "+ Add Image" to upload.</div>
+          </div>
+        </div>
+
+        <!-- Save button -->
+        <button class="profile-save-btn" id="profile-save-btn">💾 Save Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PROFILE VIEW MODAL ====== -->
+  <div id="profile-view-modal">
+    <div class="backdrop" id="profile-view-backdrop"></div>
+    <div class="profile-view-card">
+      <div class="profile-view-header">
+        <button class="profile-view-close-btn" id="profile-view-close-btn">✕</button>
+      </div>
+      <div class="profile-view-body">
+        <div class="profile-view-avatar" id="profile-view-avatar">
+          <div class="profile-view-avatar-placeholder">👤</div>
+        </div>
+        <div class="profile-view-name" id="profile-view-name">Anonymous</div>
+        <div class="profile-view-bio" id="profile-view-bio">No bio yet.</div>
+        <div class="profile-view-stars-count" id="profile-view-stars-count">✦ 0 stars</div>
+        <div class="profile-view-divider"></div>
+        <div class="profile-view-gallery" id="profile-view-gallery">
+          <h3>🖼️ Gallery</h3>
+          <div class="profile-view-gallery-grid" id="profile-view-gallery-grid">
+            <div class="profile-gallery-empty">No gallery images.</div>
+          </div>
+        </div>
+      </div>
+      <div class="profile-view-actions">
+        <button class="profile-view-pm-btn" id="profile-view-pm-btn">💬 Send Message</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== FULLSCREEN IMAGE VIEWER ====== -->
+  <div id="image-viewer">
+    <div class="backdrop" id="image-viewer-backdrop"></div>
+    <div class="image-viewer-card">
+      <button class="image-viewer-close-btn" id="image-viewer-close-btn">✕</button>
+      <img class="image-viewer-img" id="image-viewer-img" src="" alt="Full size image" />
     </div>
   </div>
 

@@ -64,15 +64,15 @@ const GALAXY_THICKNESS = 20;
 // FALLING STARS CONFIG
 // ============================================================
 const FALLING_STAR_CONFIG = {
-  spawnMinInterval: 3000,    // ms (increased from 2000 to reduce density)
-  spawnMaxInterval: 6000,    // ms (increased from 5000 to reduce density)
-  maxActiveStars: 5,         // hard cap to prevent lag from burst spawns
-  lifetime: 3.5,             // seconds before fully faded
-  speed: 2.5,               // units per frame at 60fps
-  trailLength: 18,          // number of trail particles
-  headSize: 4.0,            // sprite scale for the head
-  trailSize: 1.2,           // sprite scale for trail dots
-  spreadAngle: 0.15,        // radians of spread from main direction
+  spawnMinInterval: 3000,
+  spawnMaxInterval: 6000,
+  maxActiveStars: 5,
+  lifetime: 3.5,
+  speed: 2.5,
+  trailLength: 18,
+  headSize: 4.0,
+  trailSize: 1.2,
+  spreadAngle: 0.15,
 };
 
 // ============================================================
@@ -86,7 +86,6 @@ const state = {
   currentFilter: null,
   soundOn: true,
   searchQuery: '',
-  // Chat state
   initialZoomInProgress: false,
   chatConversations: [],
   chatMessages: [],
@@ -107,6 +106,14 @@ const state = {
   sessionId: null,
   lastKnownStarTimestamp: null,
   newStarPollTimer: null,
+  // Profile data
+  profileData: {
+    displayName: '',
+    bio: '',
+    avatar: null,
+    gallery: []
+  },
+  currentViewingProfile: null,
 };
 
 // Generate session ID
@@ -123,7 +130,7 @@ state.sessionId = getSessionId();
 // Helper to get current user display name
 function getUserDisplayName() {
   const nameVal = nameInput ? nameInput.value.trim() : '';
-  return nameVal || 'Anonymous';
+  return nameVal || state.profileData.displayName || 'Anonymous';
 }
 
 // DOM refs
@@ -147,6 +154,7 @@ const modalTime = $('#modal-time');
 const modalLikeBtn = $('#modal-like-btn');
 const modalLikeCount = $('#modal-like-count');
 const modalCloseBtn = $('#modal-close-btn');
+const modalViewProfileBtn = $('#modal-view-profile-btn');
 const commentsList = $('#comments-list');
 const commentInput = $('#comment-input');
 const commentSendBtn = $('#comment-send-btn');
@@ -156,6 +164,7 @@ const btnSound = $('#btn-sound');
 const btnExplore = $('#btn-explore');
 const btnMyStars = $('#btn-mystars');
 const btnRefresh = $('#btn-refresh');
+const btnProfile = $('#btn-profile');
 const mystarsPanel = $('#mystars-panel');
 const mystarsBackdrop = $('#mystars-backdrop');
 const mystarsCloseBtn = $('#mystars-close-btn');
@@ -163,6 +172,32 @@ const mystarsList = $('#mystars-list');
 const mystarsCount = $('#mystars-count');
 const loadingScreen = $('#loading-screen');
 const skipBtn = $('#skip-btn');
+
+// Profile Panel DOM refs
+const profilePanel = $('#profile-panel');
+const profileBackdrop = $('#profile-backdrop');
+const profileCloseBtn = $('#profile-close-btn');
+const profileAvatarWrapper = $('#profile-avatar-wrapper');
+const profileAvatarPreview = $('#profile-avatar-preview');
+const profileAvatarInput = $('#profile-avatar-input');
+const profileNameInput = $('#profile-name-input');
+const profileBioInput = $('#profile-bio-input');
+const profileGalleryGrid = $('#profile-gallery-grid');
+const profileGalleryAddBtn = $('#profile-gallery-add-btn');
+const profileGalleryInput = $('#profile-gallery-input');
+const profileSaveBtn = $('#profile-save-btn');
+
+// Profile View Modal DOM refs
+const profileViewModal = $('#profile-view-modal');
+const profileViewBackdrop = $('#profile-view-backdrop');
+const profileViewCloseBtn = $('#profile-view-close-btn');
+const profileViewAvatar = $('#profile-view-avatar');
+const profileViewName = $('#profile-view-name');
+const profileViewBio = $('#profile-view-bio');
+const profileViewStarsCount = $('#profile-view-stars-count');
+const profileViewGalleryGrid = $('#profile-view-gallery-grid');
+const profileViewPmBtn = $('#profile-view-pm-btn');
+
 // Chat DOM refs
 const btnChat = $('#btn-chat');
 const chatBadge = $('#chat-badge');
@@ -177,6 +212,12 @@ const chatMessages = $('#chat-messages');
 const chatInput = $('#chat-input');
 const chatSendBtn = $('#chat-send-btn');
 const modalPmBtn = $('#modal-pm-btn');
+
+// Image Viewer DOM refs
+const imageViewer = $('#image-viewer');
+const imageViewerBackdrop = $('#image-viewer-backdrop');
+const imageViewerCloseBtn = $('#image-viewer-close-btn');
+const imageViewerImg = $('#image-viewer-img');
 
 // Delete confirm modal refs
 const deleteConfirmModal = $('#delete-confirm-modal');
@@ -195,6 +236,45 @@ function showToast(msg) {
   toastEl.classList.add('visible');
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => toastEl.classList.remove('visible'), 3000);
+}
+
+// ============================================================
+// IMAGE COMPRESSION
+// ============================================================
+function compressImage(file, maxWidth = 400, maxHeight = 400, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round(height * maxWidth / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round(width * maxHeight / height);
+            height = maxHeight;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = event.target.result;
+    };
+    reader.onerror = reject;
+  });
 }
 
 // ============================================================
@@ -228,7 +308,11 @@ async function saveMessage(text, name, emotion) {
       emotion: emotion || 'General',
       user_id: state.sessionId,
       likes: 0,
-      liked_by: []
+      liked_by: [],
+      profile_pic: state.profileData.avatar || null,
+      bio: state.profileData.bio || '',
+      display_name: state.profileData.displayName || '',
+      gallery: state.profileData.gallery || []
     };
 
     const { data, error } = await supabase
@@ -374,6 +458,115 @@ async function deleteComment(commentId) {
 }
 
 // ============================================================
+// PROFILE OPERATIONS
+// ============================================================
+async function saveProfileToSupabase(profileData) {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        user_id: state.sessionId,
+        display_name: profileData.displayName || '',
+        bio: profileData.bio || '',
+        avatar: profileData.avatar || null,
+        gallery: profileData.gallery || [],
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      // PGRST205 / PGRST204 = schema cache not yet refreshed (table was just altered)
+      if (error.code === 'PGRST205' || error.code === 'PGRST204') {
+        console.warn('Schema cache stale, trying again in 1s...');
+        await new Promise(r => setTimeout(r, 1000));
+        const retry = await supabase
+          .from('profiles')
+          .upsert({
+            user_id: state.sessionId,
+            display_name: profileData.displayName || '',
+            bio: profileData.bio || '',
+            avatar: profileData.avatar || null,
+            gallery: profileData.gallery || [],
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .maybeSingle();
+        if (retry.error) throw retry.error;
+        return retry.data;
+      }
+      throw error;
+    }
+    return data;
+  } catch (err) {
+    console.error('Save profile error:', err);
+    // Show a more specific toast
+    if (err.code === 'PGRST204' || err.code === 'PGRST205') {
+      showToast('⚠️ Database schema refreshing. Try saving again in a few seconds.');
+    } else {
+      showToast('⚠️ Failed to save profile');
+    }
+    return null;
+  }
+}
+
+async function loadProfileFromSupabase(userId) {
+  try {
+    // Use maybeSingle() to avoid 406 error when no rows found
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      // PGRST116 = no rows found (older supabase version)
+      if (error.code === 'PGRST116') return null;
+      // PGRST205 = table not found in schema cache (just created)
+      if (error.code === 'PGRST205') return null;
+      throw error;
+    }
+    return data;
+  } catch (err) {
+    // Gracefully handle any error (network, schema cache, etc.)
+    console.warn('Load profile warning:', err.message || err);
+    return null;
+  }
+}
+
+async function loadUserProfile(userId) {
+  try {
+    let profile = await loadProfileFromSupabase(userId);
+    
+    if (!profile) {
+      const { data: stars, error } = await supabase
+        .from('stars')
+        .select('profile_pic, bio, display_name, gallery')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (error) throw error;
+      
+      if (stars && stars.length > 0) {
+        profile = {
+          user_id: userId,
+          display_name: stars[0].display_name || '',
+          bio: stars[0].bio || '',
+          avatar: stars[0].profile_pic || null,
+          gallery: stars[0].gallery || []
+        };
+      }
+    }
+    
+    return profile;
+  } catch (err) {
+    console.error('Load user profile error:', err);
+    return null;
+  }
+}
+
+// ============================================================
 // PRIVATE MESSAGING SUPABASE OPERATIONS
 // ============================================================
 function getConversationId(userA, userB) {
@@ -465,9 +658,6 @@ async function getUnreadCount() {
   }
 }
 
-// ============================================================
-// PRIVATE MESSAGE DELETE & UPDATE (via Supabase RPC)
-// ============================================================
 async function deletePrivateMessage(messageId) {
   try {
     const { data, error } = await supabase.rpc('delete_private_message', {
@@ -503,6 +693,18 @@ async function updatePrivateMessage(messageId, newMessage) {
 async function initializeApp() {
   state.loading = true;
   
+  // Load user profile
+  const profile = await loadUserProfile(state.sessionId);
+  if (profile) {
+    state.profileData = {
+      displayName: profile.display_name || '',
+      bio: profile.bio || '',
+      avatar: profile.avatar || null,
+      gallery: profile.gallery || []
+    };
+    updateProfileUI();
+  }
+  
   const stars = await loadMessages();
   state.messages = stars;
   
@@ -521,16 +723,9 @@ async function initializeApp() {
 
   state.loading = false;
 
-  // Check if user has dismissed the landing before
   const landingDismissed = localStorage.getItem('soulverse_landing_dismissed') === 'true';
 
-  // Check if coming back from support-dev page (show landing again for new users)
-  const urlParams = new URLSearchParams(window.location.search);
-  const showLanding = urlParams.get('showLanding') === 'true';
-
-  // Show landing for new users (no stars of their own) who haven't dismissed it,
-  // OR if returning from support-dev page
-  if ((state.myStarIds.size === 0 && !landingDismissed) || (state.myStarIds.size === 0 && showLanding)) {
+  if (state.myStarIds.size === 0 && !landingDismissed) {
     landingScreen.classList.remove('hidden');
     hud.style.display = 'none';
   } else {
@@ -541,6 +736,7 @@ async function initializeApp() {
   buildStars();
   buildFilterPills();
   await loadChatData();
+  setupProfileEvents();
 }
 
 // ============================================================
@@ -549,7 +745,6 @@ async function initializeApp() {
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-// Start very close to the galaxy center for the dramatic zoom-out effect
 camera.position.set(0, 20, 30);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -569,18 +764,17 @@ controls.autoRotateSpeed = 0.35;
 controls.target.set(0, 0, 0);
 
 // ============================================================
-// POST-PROCESSING — ENHANCED BLOOM FOR GLOWING STARS
+// POST-PROCESSING
 // ============================================================
 const composer = new EffectComposer(renderer);
 const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 
-// Enhanced bloom for stronger glow
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  1.8,  // intensity - increased for more glow
-  0.8,  // radius - increased for wider glow spread
-  0.15  // threshold - lower to catch more brightness
+  1.8,
+  0.8,
+  0.15
 );
 composer.addPass(bloomPass);
 
@@ -631,7 +825,7 @@ function createGalaxyCore() {
 createGalaxyCore();
 
 // ============================================================
-// STAR TEXTURES — ENHANCED FOR GLOWING EFFECT
+// STAR TEXTURES
 // ============================================================
 const textureCache = new Map();
 const userTextureCache = new Map();
@@ -858,7 +1052,6 @@ let fallingStarSpawnTimer = null;
 
 function spawnFallingStar() {
   const cfg = FALLING_STAR_CONFIG;
-  // Enforce max active stars cap to prevent burst lag
   if (activeFallingStars.length >= cfg.maxActiveStars) return;
   const angleXY = Math.random() * Math.PI * 2;
   const startRadius = 100 + Math.random() * 150;
@@ -959,8 +1152,6 @@ function startFallingStarSpawner() {
     fallingStarSpawnTimer = setTimeout(() => {
       const now = performance.now();
       const elapsed = now - lastSpawnTime;
-      // Detect device wake-up: if elapsed time is significantly larger than the scheduled delay,
-      // skip this spawn to prevent the accumulated setTimeout burst
       if (elapsed > delay + 1000) {
         lastSpawnTime = now;
         scheduleNext();
@@ -1147,7 +1338,17 @@ async function openModal(msg) {
   modalIcon.textContent = EMOTION_ICONS[msg.emotion] || '✦';
   modalLabel.textContent = msg.emotion;
   modalMessage.textContent = msg.text;
-  modalName.textContent = msg.name;
+
+  // Show display name (from profile/star data) with avatar
+  const displayName = msg.display_name || msg.name || 'Anonymous';
+  const profilePic = msg.profile_pic || null;
+  
+  if (profilePic) {
+    modalName.innerHTML = `<img src="${profilePic}" alt="" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px;object-fit:cover;display:inline-block;" /> ${displayName}`;
+  } else {
+    modalName.textContent = displayName;
+  }
+  
   const date = new Date(msg.created_at);
   modalTime.textContent = date.toLocaleString();
   modalLikeCount.textContent = msg.likes || 0;
@@ -1156,13 +1357,22 @@ async function openModal(msg) {
   currentModalComments = await loadComments(msg.id);
   renderComments(currentModalComments);
 
+  // Show View Profile button
+  if (msg.user_id) {
+    modalViewProfileBtn.style.display = 'inline-flex';
+    modalViewProfileBtn.dataset.userId = msg.user_id;
+    modalViewProfileBtn.dataset.userName = displayName;
+  } else {
+    modalViewProfileBtn.style.display = 'none';
+  }
+
   // Show/hide PM button based on whether this is the user's own star
   if (msg.user_id === state.sessionId) {
     modalPmBtn.style.display = 'none';
   } else {
     modalPmBtn.style.display = 'inline-flex';
     modalPmBtn.dataset.targetUserId = msg.user_id;
-    modalPmBtn.dataset.targetUserName = msg.name;
+    modalPmBtn.dataset.targetUserName = displayName;
   }
 
   modal.classList.add('visible');
@@ -1196,6 +1406,15 @@ function closeModal() {
 
 modalBackdrop.addEventListener('click', closeModal);
 modalCloseBtn.addEventListener('click', closeModal);
+
+// View Profile button in modal
+modalViewProfileBtn.addEventListener('click', async () => {
+  const userId = modalViewProfileBtn.dataset.userId;
+  const userName = modalViewProfileBtn.dataset.userName || 'User';
+  if (!userId) return;
+  closeModal();
+  await showUserProfile(userId, userName);
+});
 
 modalLikeBtn.addEventListener('click', async () => {
   if (!currentModalMsgId) return;
@@ -1242,7 +1461,6 @@ function renderComments(comments) {
       </div>
     `;
     
-    // Attach delete handler
     if (isMine) {
       const deleteBtn = el.querySelector('.comment-delete-btn');
       deleteBtn.addEventListener('click', async (e) => {
@@ -1296,6 +1514,323 @@ commentInput.addEventListener('keydown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeModal();
 });
+
+// ============================================================
+// USER PROFILE VIEW
+// ============================================================
+async function showUserProfile(userId, userName) {
+  try {
+    const profile = await loadUserProfile(userId);
+    const userStars = state.messages.filter(m => m.user_id === userId);
+    
+    // Update profile view
+    profileViewName.textContent = profile?.display_name || userName || 'Anonymous';
+    profileViewBio.textContent = profile?.bio || 'No bio yet.';
+    profileViewStarsCount.textContent = `✦ ${userStars.length} star${userStars.length !== 1 ? 's' : ''}`;
+    
+    // Set avatar
+    if (profile?.avatar) {
+      profileViewAvatar.innerHTML = `<img src="${profile.avatar}" alt="Profile" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`;
+    } else {
+      profileViewAvatar.innerHTML = `<div class="profile-view-avatar-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:4rem;background:#1a0a2e;border-radius:50%;">👤</div>`;
+    }
+    
+    // Set gallery
+    if (profile?.gallery && profile.gallery.length > 0) {
+      profileViewGalleryGrid.innerHTML = '';
+      profile.gallery.forEach(imgUrl => {
+        const img = document.createElement('img');
+        img.src = imgUrl;
+        img.alt = 'Gallery image';
+        img.addEventListener('click', () => openImageViewer(imgUrl));
+        profileViewGalleryGrid.appendChild(img);
+      });
+    } else {
+      profileViewGalleryGrid.innerHTML = '<div class="profile-gallery-empty" style="color:rgba(255,255,255,0.3);text-align:center;padding:1rem;grid-column:1/-1;">No gallery images.</div>';
+    }
+    
+    // Set PM button
+    if (userId === state.sessionId) {
+      profileViewPmBtn.style.display = 'none';
+    } else {
+      profileViewPmBtn.style.display = 'inline-flex';
+      profileViewPmBtn.onclick = () => {
+        profileViewModal.classList.remove('visible');
+        startChatWith(userId, profile?.display_name || userName);
+      };
+    }
+    
+    profileViewModal.classList.add('visible');
+    controls.autoRotate = false;
+  } catch (err) {
+    showToast('⚠️ Failed to load profile');
+  }
+}
+
+// ============================================================
+// PROFILE PANEL EVENTS
+// ============================================================
+function setupProfileEvents() {
+  // Open profile panel from HUD
+  if (btnProfile) {
+    btnProfile.addEventListener('click', openProfilePanel);
+  }
+  
+  // Close profile panel
+  if (profileCloseBtn) {
+    profileCloseBtn.addEventListener('click', closeProfilePanel);
+  }
+  if (profileBackdrop) {
+    profileBackdrop.addEventListener('click', closeProfilePanel);
+  }
+  
+  // Avatar upload
+  if (profileAvatarWrapper) {
+    profileAvatarWrapper.addEventListener('click', () => {
+      profileAvatarInput.click();
+    });
+  }
+  if (profileAvatarInput) {
+    profileAvatarInput.addEventListener('change', handleAvatarUpload);
+  }
+  
+  // Gallery upload
+  if (profileGalleryAddBtn) {
+    profileGalleryAddBtn.addEventListener('click', () => {
+      profileGalleryInput.click();
+    });
+  }
+  if (profileGalleryInput) {
+    profileGalleryInput.addEventListener('change', handleGalleryUpload);
+  }
+  
+  // Save profile
+  if (profileSaveBtn) {
+    profileSaveBtn.addEventListener('click', saveProfile);
+  }
+  
+  // Close profile view modal
+  if (profileViewCloseBtn) {
+    profileViewCloseBtn.addEventListener('click', () => {
+      profileViewModal.classList.remove('visible');
+      controls.autoRotate = true;
+    });
+  }
+  if (profileViewBackdrop) {
+    profileViewBackdrop.addEventListener('click', () => {
+      profileViewModal.classList.remove('visible');
+      controls.autoRotate = true;
+    });
+  }
+  
+  // Close image viewer
+  if (imageViewerCloseBtn) {
+    imageViewerCloseBtn.addEventListener('click', closeImageViewer);
+  }
+  if (imageViewerBackdrop) {
+    imageViewerBackdrop.addEventListener('click', closeImageViewer);
+  }
+}
+
+function openProfilePanel() {
+  updateProfileUI();
+  profilePanel.classList.add('visible');
+}
+
+function closeProfilePanel() {
+  profilePanel.classList.remove('visible');
+}
+
+function updateProfileUI() {
+  // Set name
+  if (profileNameInput) {
+    profileNameInput.value = state.profileData.displayName || '';
+  }
+  
+  // Set bio
+  if (profileBioInput) {
+    profileBioInput.value = state.profileData.bio || '';
+  }
+  
+  // Set avatar preview
+  if (profileAvatarPreview) {
+    profileAvatarPreview.innerHTML = '';
+    
+    if (state.profileData.avatar) {
+      const img = document.createElement('img');
+      img.src = state.profileData.avatar;
+      img.alt = 'Profile';
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+      profileAvatarPreview.appendChild(img);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'profile-avatar-placeholder';
+      placeholder.textContent = '📷';
+      profileAvatarPreview.appendChild(placeholder);
+    }
+  }
+  
+  // Remove button: placed OUTSIDE .profile-avatar-wrapper as a sibling
+  const avatarSection = document.querySelector('.profile-avatar-section');
+  if (avatarSection) {
+    const existingRemoveBtn = avatarSection.querySelector('.profile-avatar-remove-btn');
+    if (existingRemoveBtn) existingRemoveBtn.remove();
+    
+    if (state.profileData.avatar) {
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'profile-avatar-remove-btn';
+      removeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg> Remove Picture`;
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('Remove your profile picture?')) {
+          state.profileData.avatar = null;
+          updateProfileUI();
+          showToast('🗑️ Profile picture removed');
+        }
+      });
+      // Insert after the avatar wrapper, inside the avatar section
+      const wrapper = avatarSection.querySelector('.profile-avatar-wrapper');
+      if (wrapper) {
+        wrapper.after(removeBtn);
+      }
+    }
+  }
+  
+  // Set gallery
+  if (profileGalleryGrid) {
+    if (state.profileData.gallery && state.profileData.gallery.length > 0) {
+      profileGalleryGrid.innerHTML = '';
+      state.profileData.gallery.forEach((imgUrl, idx) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'profile-gallery-item';
+        const img = document.createElement('img');
+        img.src = imgUrl;
+        img.alt = 'Gallery image';
+        img.addEventListener('click', () => openImageViewer(imgUrl));
+        wrapper.appendChild(img);
+        // Delete button with hover reveal
+        const delBtn = document.createElement('button');
+        delBtn.className = 'profile-gallery-item-delete';
+        delBtn.innerHTML = '✕';
+        delBtn.title = 'Remove image';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm('Remove this image from gallery?')) {
+            state.profileData.gallery.splice(idx, 1);
+            updateProfileUI();
+            showToast('🗑️ Image removed');
+          }
+        });
+        wrapper.appendChild(delBtn);
+        profileGalleryGrid.appendChild(wrapper);
+      });
+    } else {
+      profileGalleryGrid.innerHTML = '<div class="profile-gallery-empty">No images yet. Click "+ Add Image" to upload.</div>';
+    }
+  }
+}
+
+async function handleAvatarUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  try {
+    showToast('📷 Compressing image...');
+    const compressed = await compressImage(file, 300, 300, 0.7);
+    state.profileData.avatar = compressed;
+    updateProfileUI();
+    showToast('✅ Profile picture updated!');
+  } catch (err) {
+    showToast('⚠️ Failed to compress image');
+  }
+  profileAvatarInput.value = '';
+}
+
+async function handleGalleryUpload(e) {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+  
+  try {
+    showToast(`📸 Compressing ${files.length} image(s)...`);
+    const compressedImages = [];
+    for (const file of files) {
+      const compressed = await compressImage(file, 400, 400, 0.7);
+      compressedImages.push(compressed);
+    }
+    
+    if (!state.profileData.gallery) {
+      state.profileData.gallery = [];
+    }
+    state.profileData.gallery.push(...compressedImages);
+    updateProfileUI();
+    showToast(`✅ ${compressedImages.length} image(s) added to gallery!`);
+  } catch (err) {
+    showToast('⚠️ Failed to compress images');
+  }
+  profileGalleryInput.value = '';
+}
+
+async function saveProfile() {
+  try {
+    const displayName = profileNameInput.value.trim() || 'Anonymous';
+    const bio = profileBioInput.value.trim() || '';
+    
+    state.profileData.displayName = displayName;
+    state.profileData.bio = bio;
+    
+    // 1. Save to profiles table
+    const saved = await saveProfileToSupabase(state.profileData);
+    if (!saved) {
+      showToast('⚠️ Failed to save profile');
+      return;
+    }
+    
+    // 2. Sync profile data to ALL user's existing stars
+    try {
+      const { error: updateError } = await supabase
+        .from('stars')
+        .update({
+          display_name: state.profileData.displayName,
+          profile_pic: state.profileData.avatar,
+          bio: state.profileData.bio,
+          gallery: state.profileData.gallery
+        })
+        .eq('user_id', state.sessionId);
+      
+      if (updateError) console.warn('Failed to update stars profile data:', updateError);
+    } catch (starsErr) {
+      console.warn('Could not sync profile to stars:', starsErr);
+    }
+    
+    // 3. Update local in-memory messages so the UI reflects changes immediately
+    state.messages.forEach(msg => {
+      if (msg.user_id === state.sessionId) {
+        msg.display_name = state.profileData.displayName;
+        msg.profile_pic = state.profileData.avatar;
+        msg.bio = state.profileData.bio;
+        msg.gallery = state.profileData.gallery;
+      }
+    });
+    
+    showToast('✅ Profile saved and synced to all your stars!');
+    closeProfilePanel();
+  } catch (err) {
+    showToast('⚠️ Error saving profile');
+  }
+}
+
+// ============================================================
+// IMAGE VIEWER
+// ============================================================
+function openImageViewer(imgUrl) {
+  imageViewerImg.src = imgUrl;
+  imageViewer.classList.add('visible');
+}
+
+function closeImageViewer() {
+  imageViewer.classList.remove('visible');
+  imageViewerImg.src = '';
+}
 
 // ============================================================
 // PRIVATE MESSAGE CHAT LOGIC
@@ -1378,7 +1913,6 @@ function renderChatMessages() {
     const isMine = msg.sender_id === state.sessionId;
     const el = document.createElement('div');
     
-    // Handle deleted state
     if (msg.is_deleted) {
       el.className = 'chat-msg deleted' + (isMine ? ' sent' : ' received');
       const time = new Date(msg.created_at);
@@ -1394,13 +1928,13 @@ function renderChatMessages() {
     const time = new Date(msg.created_at);
     const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const name = isMine ? 'You' : msg.sender_name;
-    const editedBadge = msg.is_edited ? ' <span class="chat-msg-edited">(edited)</span>' : '';
+    const editedBadge = msg.is_edited ? ' <span class="chat-msg-edited" style="font-size:0.6rem;color:rgba(255,255,255,0.3);">(edited)</span>' : '';
     
     el.className = 'chat-msg' + (isMine ? ' sent' : ' received');
     el.dataset.msgId = msg.id;
     
     let actionsHtml = '';
-    if (isMine) {
+    if (isMine && !msg.is_deleted) {
       actionsHtml = `
         <div class="chat-msg-actions">
           <button class="chat-msg-action-btn edit" title="Edit" data-msg-id="${msg.id}">✎</button>
@@ -1416,20 +1950,23 @@ function renderChatMessages() {
       ${actionsHtml}
     `;
     
-    // Add event listeners for edit/delete buttons
-    if (isMine) {
+    if (isMine && !msg.is_deleted) {
       const editBtn = el.querySelector('.chat-msg-action-btn.edit');
       const deleteBtn = el.querySelector('.chat-msg-action-btn.delete');
       
-      editBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        startChatEdit(msg, el);
-      });
+      if (editBtn) {
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          startChatEdit(msg, el);
+        });
+      }
       
-      deleteBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        handleChatDelete(msg);
-      });
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleChatDelete(msg);
+        });
+      }
     }
     
     chatMessages.appendChild(el);
@@ -1437,9 +1974,6 @@ function renderChatMessages() {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// ============================================================
-// CHAT MESSAGE EDIT & DELETE ACTIONS
-// ============================================================
 function startChatEdit(msg, el) {
   if (msg.is_deleted) return;
   
@@ -1509,7 +2043,6 @@ async function handleChatDelete(msg) {
 
 async function openChatPanel() {
   chatPanel.classList.add('visible');
-  // If no current conversation, show the list
   if (!state.currentConvId) {
     chatConversationsList.style.display = 'block';
     chatDetail.style.display = 'none';
@@ -1517,7 +2050,6 @@ async function openChatPanel() {
     chatConversationsList.style.display = 'none';
     chatDetail.style.display = 'flex';
   }
-  // Refresh conversations from server to get latest messages
   await loadChatData();
   if (state.currentConvId) {
     loadChatHistory();
@@ -1533,7 +2065,6 @@ async function loadChatData() {
   state.unreadCount = await getUnreadCount();
   updateChatBadge();
   
-  // Build conversation list from messages
   const convMap = new Map();
   allMessages.forEach(msg => {
     const convId = msg.conversation_id;
@@ -2021,12 +2552,10 @@ function showDeleteConfirm(msg) {
   pendingDeleteStarMsg = msg;
   deleteConfirmPreview.textContent = `"${msg.text.length > 80 ? msg.text.substring(0, 80) + '...' : msg.text}"`;
   deleteConfirmModal.classList.add('visible');
-  deleteConfirmBackdrop.classList.add('visible');
 }
 
 function hideDeleteConfirm() {
   deleteConfirmModal.classList.remove('visible');
-  deleteConfirmBackdrop.classList.remove('visible');
   pendingDeleteStarId = null;
   pendingDeleteStarMsg = null;
 }
@@ -2229,12 +2758,11 @@ function startInitialZoomAnimation() {
   controls.update();
 
   let t = 0;
-  const duration = 180; // ~3 seconds at 60fps
+  const duration = 180;
 
   function zoomStep() {
     t++;
     const p = Math.min(t / duration, 1);
-    // Ease-out cubic: fast start, slow end
     const ease = 1 - Math.pow(1 - p, 3);
     
     camera.position.lerpVectors(startPos, endPos, ease);
@@ -2372,26 +2900,21 @@ function setupRealtimeSubscriptions() {
     )
     .subscribe();
 
-
   supabase
     .channel('private-messages-realtime')
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'private_messages' },
       async (payload) => {
         const newMsg = payload.new;
-        // Skip our own messages (we already added them locally)
         if (newMsg.sender_id === state.sessionId) return;
-        // Only process messages that involve us
         if (newMsg.recipient_id !== state.sessionId) return;
 
-        // If we're currently viewing this conversation, add the message live
         if (state.currentConvId === newMsg.conversation_id) {
           state.chatMessages.push(newMsg);
           renderChatMessages();
           await markMessagesAsRead(state.currentConvId);
           await updateUnreadCount();
         } else {
-          // Refresh conversation list and update badge
           await loadChatData();
           state.unreadCount++;
           updateChatBadge();
@@ -2405,7 +2928,6 @@ function setupRealtimeSubscriptions() {
         const updatedMsg = payload.new;
         if (updatedMsg.recipient_id !== state.sessionId && updatedMsg.sender_id !== state.sessionId) return;
 
-        // Update the message in the local state
         const idx = state.chatMessages.findIndex(m => m.id === updatedMsg.id);
         if (idx !== -1) {
           state.chatMessages[idx] = updatedMsg;
@@ -2414,7 +2936,6 @@ function setupRealtimeSubscriptions() {
           }
         }
 
-        // Also update in conversations list
         const convIdx = state.chatConversations.findIndex(c => c.conversation_id === updatedMsg.conversation_id);
         if (convIdx !== -1 && !updatedMsg.is_deleted) {
           state.chatConversations[convIdx].lastMessage = updatedMsg.message;
@@ -2525,7 +3046,6 @@ async function init() {
 
   setTimeout(() => {
     loadingScreen.classList.add('hidden');
-    // Start the dramatic zoom-out animation after the loading screen hides
     startInitialZoomAnimation();
   }, 1500);
 
