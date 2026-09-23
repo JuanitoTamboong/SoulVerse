@@ -1,0 +1,13 @@
+{
+  "name": "soulverse",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tailwindcss -i ./css/tailwind.css -o ./css/style.css --watch",
+    "build": "tailwindcss -i ./css/tailwind.css -o ./css/style.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

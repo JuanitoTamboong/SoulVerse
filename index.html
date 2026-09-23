@@ -4,320 +4,701 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SoulVerse · Emotion Galaxy</title>
-  <link rel="stylesheet" href="css/style.css" />
-  <link rel="web icon" href="./assets/SoulVerse.png" />
+  <link rel="icon" href="./assets/SoulVerse.png" />
+
+  <!-- Tailwind + config -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cosmos: {
+              50:'#f4f0ff',100:'#e9e2ff',200:'#d4c7ff',300:'#b8a3ff',400:'#9a7aff',
+              500:'#7b4dff',600:'#6633e6',700:'#5326bf',800:'#3e1a8c',900:'#2a0e5e'
+            },
+            nebula: { pink:'#f472b6', violet:'#a78bfa', cyan:'#67e8f9', amber:'#fbbf24' },
+          },
+          fontFamily: {
+            display: ['"Space Grotesk"','system-ui','sans-serif'],
+            body:    ['"Inter"','system-ui','sans-serif'],
+          },
+          animation: {
+            'float':'float 6s ease-in-out infinite',
+            'pulse-glow':'pulseGlow 2s ease-in-out infinite',
+            'twinkle':'twinkle 3s ease-in-out infinite',
+            'heart-beat':'heartBeat 1.5s ease-in-out infinite',
+            'badge-pulse':'badgePulse 2s ease-in-out infinite',
+            'slide-up':'slideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            'fade-in':'fadeIn 0.4s ease-out',
+            'spin-slow':'spin 8s linear infinite',
+          },
+          keyframes: {
+            float:{'0%,100%':{transform:'translateY(0)'},'50%':{transform:'translateY(-10px)'}},
+            pulseGlow:{'0%,100%':{opacity:'.6',boxShadow:'0 0 20px rgba(154,122,255,0.3)'},'50%':{opacity:'1',boxShadow:'0 0 40px rgba(154,122,255,0.7)'}},
+            twinkle:{'0%,100%':{opacity:'.3',transform:'scale(1)'},'50%':{opacity:'1',transform:'scale(1.2)'}},
+            heartBeat:{'0%,100%':{transform:'scale(1)'},'14%':{transform:'scale(1.15)'},'28%':{transform:'scale(1)'},'42%':{transform:'scale(1.1)'},'70%':{transform:'scale(1)'}},
+            badgePulse:{'0%,100%':{transform:'scale(1)'},'50%':{transform:'scale(1.1)'}},
+            slideUp:{from:{opacity:'0',transform:'translateY(20px)'},to:{opacity:'1',transform:'translateY(0)'}},
+            fadeIn:{from:{opacity:'0'},to:{opacity:'1'}},
+          }
+        }
+      }
+    }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .font-display { font-family: 'Space Grotesk', system-ui, sans-serif; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    .starfield {
+      background-image:
+        radial-gradient(2px 2px at 20px 30px, #fff, transparent),
+        radial-gradient(2px 2px at 40px 70px, #fff, transparent),
+        radial-gradient(1px 1px at 90px 40px, #fff, transparent),
+        radial-gradient(1px 1px at 130px 80px, #fff, transparent),
+        radial-gradient(2px 2px at 160px 30px, #fff, transparent);
+      background-size: 200px 100px;
+      background-repeat: repeat;
+    }
+    .glass { background: rgba(20, 10, 40, 0.65); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.08); }
+    .glass-light { background: rgba(255,255,255,0.05); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+
+    select.emotion-select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 1.2rem center;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    select.emotion-select option { background: #1a0a2e; color: #fff; }
+
+    .typing-indicator .typing-dots::after { content: ''; animation: typingDot 1.2s steps(4, end) infinite; }
+    @keyframes typingDot { 0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} 100%{content:''} }
+
+    @keyframes commentSlideIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .comment-item { animation: commentSlideIn 0.3s ease-out; }
+
+    @keyframes chatMsgSlideIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    .chat-msg { animation: chatMsgSlideIn 0.25s ease-out; }
+
+    @keyframes deleteIconPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,50,50,0.2); }
+      50%      { transform: scale(1.08); box-shadow: 0 0 20px 6px rgba(255,50,50,0.15); }
+    }
+    .delete-confirm-icon { animation: deleteIconPulse 1.5s ease-in-out infinite; }
+
+    .landing-title-gradient {
+      background: linear-gradient(135deg, #f0e6ff, #c4a0ff, #7c3aed, #c4a0ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .modal-shell { opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+    .modal-shell.visible { opacity: 1; pointer-events: auto; }
+    .modal-shell .modal-panel { transform: scale(0.94) translateY(20px); transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .modal-shell.visible .modal-panel { transform: scale(1) translateY(0); }
+
+    .filter-pill.active { background: rgba(123,77,255,0.35) !important; border-color: rgba(123,77,255,0.6) !important; color: #fff !important; }
+    .hud-btn.active { background: rgba(123,77,255,0.3); border-color: rgba(123,77,255,0.5); color: #fff; }
+
+    #toast { transform: translateX(-50%) translateY(80px); transition: all 0.5s ease; }
+    #toast.visible { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    .chat-badge { animation: badgePulse 2s ease-in-out infinite; }
+  </style>
 </head>
-<body>
+<body class="bg-black text-white/90 selection:bg-cosmos-500/40">
 
-  <!-- ====== LOADING SCREEN ====== -->
-  <div id="loading-screen">
-    <div class="loading-star">✦</div>
-    <div class="loading-text">Igniting the SoulVerse...</div>
+  <!-- ===== GLOBAL BACKGROUND ===== -->
+  <div class="fixed inset-0 -z-10 bg-gradient-to-br from-[#0b0715] via-[#1a0f2e] to-[#0e0722]"></div>
+  <div class="fixed inset-0 -z-10 opacity-20 starfield"></div>
+  <div class="fixed -z-10 top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-cosmos-600/20 blur-[120px]"></div>
+  <div class="fixed -z-10 bottom-[-30%] right-[-10%] w-[700px] h-[700px] rounded-full bg-nebula-pink/10 blur-[140px]"></div>
+
+  <!-- =========================================================
+       LOADING SCREEN
+       ========================================================= -->
+  <div id="loading-screen" class="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-black transition-opacity duration-700">
+    <div class="relative w-20 h-20">
+      <div class="absolute inset-0 rounded-full border-2 border-cosmos-500/20"></div>
+      <div class="absolute inset-0 rounded-full border-2 border-transparent border-t-cosmos-400 animate-spin"></div>
+      <div class="absolute inset-0 flex items-center justify-center">
+        <svg class="w-8 h-8 text-cosmos-300 animate-pulse-glow" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2l1.9 5.9L20 10l-6.1 2.1L12 18l-1.9-5.9L4 10l6.1-2.1z"/>
+        </svg>
+      </div>
+    </div>
+    <p class="mt-8 text-cosmos-200/80 text-xs tracking-[0.4em] uppercase font-light animate-pulse text-center px-4">
+      Igniting the SoulVerse
+    </p>
   </div>
 
-  <!-- ====== LANDING SCREEN ====== -->
-  <div id="landing-screen">
-    <h1 class="landing-title">SoulVerse</h1>
-    <p class="landing-subtitle">Where every feeling becomes a star</p>
+  <!-- =========================================================
+       LANDING SCREEN
+       ========================================================= -->
+  <div id="landing-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center px-4 py-12 overflow-y-auto transition-all duration-1000"
+       style="background: radial-gradient(ellipse at center, #0a0015 0%, #000 70%);">
 
-    <form class="landing-form" id="emotion-form">
-      <div class="input-wrapper">
-        <input class="landing-input" id="emotion-input" type="text"
-               placeholder="How are you feeling today?" autocomplete="off" required />
+    <div class="absolute top-[15%] left-[10%] text-cosmos-300/20 animate-float pointer-events-none">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.9L20 10l-6.1 2.1L12 18l-1.9-5.9L4 10l6.1-2.1z"/></svg>
+    </div>
+    <div class="absolute top-[25%] right-[15%] text-cosmos-300/15 animate-float pointer-events-none" style="animation-delay:1s">
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.9L20 10l-6.1 2.1L12 18l-1.9-5.9L4 10l6.1-2.1z"/></svg>
+    </div>
+    <div class="absolute bottom-[20%] left-[20%] text-cosmos-300/10 animate-float pointer-events-none" style="animation-delay:2s">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.9L20 10l-6.1 2.1L12 18l-1.9-5.9L4 10l6.1-2.1z"/></svg>
+    </div>
+    <div class="absolute top-[10%] right-[30%] text-white/30 animate-twinkle pointer-events-none">✦</div>
+    <div class="absolute bottom-[30%] right-[10%] text-white/25 animate-twinkle pointer-events-none" style="animation-delay:1.5s">✦</div>
+
+    <div class="max-w-2xl w-full text-center relative">
+
+      <!-- Logo mark -->
+      <div class="flex justify-center mb-8">
+        <div class="relative">
+          <div class="absolute inset-0 rounded-2xl bg-cosmos-500/30 blur-xl animate-pulse-glow"></div>
+          <div class="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-cosmos-400 to-nebula-violet flex items-center justify-center shadow-2xl shadow-cosmos-500/40">
+            <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="2" fill="currentColor"/>
+              <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(30 12 12)"/>
+              <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-30 12 12)"/>
+            </svg>
+          </div>
+        </div>
       </div>
 
-      <div class="landing-row">
-        <select class="emotion-select" id="emotion-category" title="Select your current emotion category">
-          <option value="General">✦ General</option>
-          <option value="Happy">😊 Happy</option>
-          <option value="Sad">😢 Sad</option>
-          <option value="Angry">😠 Angry</option>
-          <option value="Anxious">😰 Anxious</option>
-          <option value="Excited">🤩 Excited</option>
-          <option value="Grateful">🙏 Grateful</option>
-          <option value="Hopeful">🌟 Hopeful</option>
-          <option value="Lonely">💔 Lonely</option>
-          <option value="Love">❤️ Love</option>
-          <option value="Peaceful">🕊️ Peaceful</option>
-        </select>
+      <h1 class="landing-title font-display text-6xl md:text-7xl font-bold tracking-tight mb-4 landing-title-gradient">
+        SoulVerse
+      </h1>
+      <p class="text-xs md:text-sm text-white/40 font-light max-w-md mx-auto mb-12 tracking-[0.4em] uppercase">
+        Where every feeling becomes a star
+      </p>
 
-        <input class="name-input" id="name-input" type="text"
-               placeholder="Anonymous (optional)" />
+      <form id="emotion-form" class="space-y-4 max-w-lg mx-auto">
+
+        <!-- Emotion input -->
+        <div class="relative group">
+          <div class="absolute -inset-0.5 bg-gradient-to-r from-cosmos-500 to-nebula-violet rounded-2xl blur opacity-30 group-focus-within:opacity-60 transition duration-500"></div>
+          <div class="relative flex items-center rounded-2xl glass overflow-hidden">
+            <div class="pl-5 pr-3 text-cosmos-300/60">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l1.9 5.9L20 10l-6.1 2.1L12 18l-1.9-5.9L4 10l6.1-2.1z"/>
+              </svg>
+            </div>
+            <input id="emotion-input" type="text" placeholder="How are you feeling today?"
+                   autocomplete="off" required
+                   class="flex-1 py-5 pr-5 bg-transparent text-white placeholder-white/30 text-base focus:outline-none" />
+          </div>
+        </div>
+
+        <!-- Category + Name row -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-1">
+            <select id="emotion-category" title="Select your current emotion category"
+                    class="emotion-select w-full pl-11 pr-10 py-4 rounded-2xl glass-light text-white/85 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-cosmos-400/40 transition appearance-none">
+              <option value="General">General</option>
+              <option value="Happy">😊 Happy</option>
+              <option value="Sad">😢 Sad</option>
+              <option value="Angry">😠 Angry</option>
+              <option value="Anxious">😰 Anxious</option>
+              <option value="Excited">🤩 Excited</option>
+              <option value="Grateful">🙏 Grateful</option>
+              <option value="Hopeful">🌟 Hopeful</option>
+              <option value="Lonely">💔 Lonely</option>
+              <option value="Love">❤️ Love</option>
+              <option value="Peaceful">🕊️ Peaceful</option>
+            </select>
+            <div class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-cosmos-300/60">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                <line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+            </div>
+          </div>
+          <div class="relative flex-1">
+            <input id="name-input" type="text" placeholder="Anonymous (optional)"
+                   class="w-full pl-11 pr-4 py-4 rounded-2xl glass-light text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-cosmos-400/40 transition" />
+            <div class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-cosmos-300/60">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit"
+                class="group relative w-full py-4 rounded-2xl font-display font-semibold text-base tracking-wide overflow-hidden transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]">
+          <div class="absolute inset-0 bg-gradient-to-r from-cosmos-500 to-nebula-violet"></div>
+          <div class="absolute inset-0 bg-gradient-to-r from-cosmos-400 to-nebula-pink opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <span class="relative flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2l1.9 5.9L20 10l-6.1 2.1L12 18l-1.9-5.9L4 10l6.1-2.1z"/>
+            </svg>
+            Release into the Universe
+          </span>
+        </button>
+
+        <!-- Skip -->
+        <button type="button" id="skip-btn"
+                class="group w-full py-3 text-white/40 hover:text-white/80 text-xs tracking-widest uppercase transition-colors duration-300 flex items-center justify-center gap-2">
+          <span>Skip</span>
+          <svg class="w-3 h-3 group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <polyline points="12 5 19 12 12 19"/>
+          </svg>
+          <span>Explore Galaxy</span>
+        </button>
+      </form>
+
+      <p class="mt-10 text-white/20 text-[10px] tracking-[0.3em] uppercase">
+        Your emotions become stars in an ever-growing galaxy
+      </p>
+
+      <!-- Support developer -->
+      <div class="support-section mt-8">
+        <a href="support-dev.html" id="support-toggle"
+           class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full glass-light text-white/50 hover:text-white/90 hover:border-cosmos-400/40 transition-all duration-300 text-xs tracking-wide group">
+          <svg class="w-4 h-4 text-red-400 group-hover:scale-110 transition-transform animate-heart-beat" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+          <span>Support the Developer</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       GALAXY VIEW
+       ========================================================= -->
+  <div id="galaxy-view" class="fixed inset-0 z-0"></div>
+
+  <!-- =========================================================
+       HUD OVERLAY
+       ========================================================= -->
+  <div id="hud" class="fixed inset-0 z-20 pointer-events-none hidden">
+    <div class="absolute inset-0 flex flex-col justify-between p-3 sm:p-4 md:p-6">
+
+      <!-- TOP BAR -->
+      <div class="flex items-start justify-between gap-3 pointer-events-auto flex-wrap">
+        <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          <button id="btn-back" class="hud-btn glass-light rounded-xl px-2.5 sm:px-3 py-2 flex items-center gap-2 text-xs sm:text-sm text-white/70 hover:text-white hover:border-cosmos-400/40 transition-all duration-300">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            <span class="hidden sm:inline">Back</span>
+          </button>
+
+          <button id="btn-sound" class="hud-btn glass-light rounded-xl px-2.5 sm:px-3 py-2 flex items-center gap-2 text-xs sm:text-sm text-white/70 hover:text-white transition-all duration-300">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none"/>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+            </svg>
+            <span class="btn-text hidden md:inline" id="sound-text">Sound</span>
+          </button>
+
+          <button id="btn-explore" class="hud-btn glass-light rounded-xl px-2.5 sm:px-3 py-2 flex items-center gap-2 text-xs sm:text-sm text-white/70 hover:text-white transition-all duration-300">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="3"/>
+              <circle cx="8" cy="8" r="1.2" fill="currentColor"/>
+              <circle cx="16" cy="16" r="1.2" fill="currentColor"/>
+              <circle cx="16" cy="8" r="1.2" fill="currentColor"/>
+              <circle cx="8" cy="16" r="1.2" fill="currentColor"/>
+              <circle cx="12" cy="12" r="1.2" fill="currentColor"/>
+            </svg>
+            <span class="hidden sm:inline">Explore</span>
+          </button>
+
+          <button id="btn-mystars" class="hud-btn glass-light rounded-xl px-2.5 sm:px-3 py-2 flex items-center gap-2 text-xs sm:text-sm text-white/70 hover:text-white transition-all duration-300">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span class="hidden md:inline">Manage</span>
+          </button>
+
+          <button id="btn-profile" class="hud-btn glass-light rounded-xl px-2.5 sm:px-3 py-2 flex items-center gap-2 text-xs sm:text-sm text-white/70 hover:text-white transition-all duration-300">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            <span class="hidden md:inline">Profile</span>
+          </button>
+
+          <button id="btn-chat" class="hud-btn glass-light rounded-xl px-2.5 sm:px-3 py-2 flex items-center gap-2 text-xs sm:text-sm text-white/70 hover:text-white transition-all duration-300 relative">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span class="hidden md:inline">Chat</span>
+            <span id="chat-badge" class="chat-badge absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-[10px] flex items-center justify-center font-bold px-1 shadow-lg" style="display:none;">0</span>
+          </button>
+
+          <button id="btn-refresh" class="hud-btn glass-light rounded-xl px-2.5 sm:px-3 py-2 flex items-center gap-2 text-xs sm:text-sm text-white/70 hover:text-white transition-all duration-300">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 4v6h-6"/>
+              <path d="M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            <span class="hidden md:inline">Refresh</span>
+          </button>
+        </div>
+
+        <span id="star-counter" class="hud-counter text-[10px] sm:text-xs text-white/40 tracking-widest uppercase whitespace-nowrap pt-2">✦ 0 stars</span>
       </div>
 
-      <button class="submit-btn" type="submit">
-        ✦ Release into the Universe
+      <!-- BOTTOM BAR -->
+      <div class="flex flex-col gap-3 pointer-events-auto">
+        <div id="filter-pills" class="filter-pills flex flex-wrap gap-2"></div>
+        <div class="hidden md:block text-[10px] text-white/20 tracking-[0.3em] uppercase text-right">SoulVerse · v1.0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       STAR MODAL
+       ========================================================= -->
+  <div id="star-modal" class="modal-shell fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6">
+    <div class="backdrop absolute inset-0 bg-black/60 backdrop-blur-sm" id="modal-backdrop"></div>
+    <div class="modal-panel relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl glass p-6 sm:p-8 shadow-2xl shadow-cosmos-500/20 border border-white/10">
+      <button id="modal-close-btn" class="modal-close-btn absolute top-4 right-4 w-8 h-8 rounded-full glass-light text-white/50 hover:text-white flex items-center justify-center transition-all duration-300">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
       </button>
 
-      <button class="skip-btn" type="button" id="skip-btn">
-        Skip → Explore Galaxy
+      <div class="flex flex-col items-center text-center pt-2">
+        <div class="text-5xl mb-4" id="modal-icon">✨</div>
+        <div class="text-[10px] tracking-[0.3em] uppercase text-cosmos-300/70 mb-2" id="modal-label">General</div>
+        <div class="text-xl sm:text-2xl font-display font-medium text-white/95 mb-3 leading-relaxed break-words" id="modal-message">—</div>
+        <div class="text-sm text-white/50 mb-1" id="modal-name">Anonymous</div>
+        <div class="text-[10px] text-white/25 mb-6 tracking-wide" id="modal-time">just now</div>
+      </div>
+
+      <div id="modal-comments" class="w-full">
+        <div class="comments-list max-h-56 overflow-y-auto mb-3 space-y-2 p-2 rounded-2xl bg-black/25 border border-white/5" id="comments-list">
+          <div class="comment-empty text-center text-white/30 text-sm py-6 italic flex flex-col items-center gap-2">
+            <svg class="w-6 h-6 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            No messages yet. Be the first to leave a kind thought!
+          </div>
+        </div>
+        <div class="typing-indicator text-xs text-white/35 h-4 mb-2 italic opacity-0 transition-opacity" id="typing-indicator"></div>
+        <div class="comment-form flex gap-2">
+          <input id="comment-input" type="text" placeholder="Leave a message..." autocomplete="off"
+                 class="comment-input flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-cosmos-400/60 transition" />
+          <button id="comment-send-btn"
+                  class="comment-send-btn px-5 py-2.5 rounded-xl bg-cosmos-500/30 border border-cosmos-500/40 hover:bg-cosmos-500/50 text-white text-sm font-medium transition-colors duration-200 whitespace-nowrap flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+            Send
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-actions mt-6 flex flex-wrap items-center justify-center gap-2">
+        <button id="modal-like-btn" class="modal-like-btn px-4 py-2.5 rounded-xl glass-light text-white/80 hover:bg-pink-500/20 hover:border-pink-400/40 transition-all duration-300 text-sm flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18h6"/>
+            <path d="M10 22h4"/>
+            <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/>
+          </svg>
+          <span id="modal-like-count">0</span> Send Light
+        </button>
+        <button id="modal-view-profile-btn" class="modal-view-profile-btn px-4 py-2.5 rounded-xl glass-light text-white/80 hover:bg-cosmos-500/20 hover:border-cosmos-400/40 transition-all duration-300 text-sm flex items-center gap-1.5" style="display:none;">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          View Profile
+        </button>
+        <button id="modal-pm-btn" class="modal-pm-btn px-4 py-2.5 rounded-xl bg-cosmos-500/20 border border-cosmos-500/40 text-white/85 hover:bg-cosmos-500/40 transition-all duration-300 text-sm flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Private Message
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       MY STARS PANEL
+       ========================================================= -->
+  <div id="mystars-panel" class="modal-shell fixed inset-0 z-[250] flex items-center justify-center p-4 sm:p-6">
+    <div class="backdrop absolute inset-0 bg-black/60 backdrop-blur-sm" id="mystars-backdrop"></div>
+    <div class="modal-panel relative w-full max-w-xl max-h-[85vh] flex flex-col rounded-3xl glass shadow-2xl shadow-cosmos-500/20 border border-white/10 overflow-hidden">
+      <div class="mystars-header flex items-center gap-3 p-5 border-b border-white/5">
+        <div class="w-9 h-9 rounded-xl bg-cosmos-500/20 border border-cosmos-500/40 flex items-center justify-center">
+          <svg class="w-4 h-4 text-cosmos-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h2 class="font-display text-base font-semibold">My Stars</h2>
+          <span id="mystars-count" class="mystars-count text-[10px] text-white/40 tracking-wider uppercase">0 stars</span>
+        </div>
+        <button id="mystars-close-btn" class="mystars-close-btn w-7 h-7 rounded-full glass-light text-white/50 hover:text-white flex items-center justify-center transition">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div id="mystars-list" class="mystars-list flex-1 overflow-y-auto p-4 space-y-2">
+        <div class="mystars-empty text-center text-white/30 text-sm py-10 italic">You haven't created any stars yet. Share your emotion to create your first star!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       TOAST
+       ========================================================= -->
+  <div id="toast" class="fixed bottom-6 left-1/2 z-[300] px-5 py-3 rounded-2xl glass-light text-white/85 text-sm shadow-xl opacity-0 pointer-events-none whitespace-nowrap max-w-[90vw]"></div>
+
+  <!-- =========================================================
+       DELETE CONFIRM MODAL
+       ========================================================= -->
+  <div id="delete-confirm-modal" class="modal-shell fixed inset-0 z-[260] flex items-center justify-center p-4">
+    <div class="backdrop absolute inset-0 bg-black/70 backdrop-blur-sm" id="delete-confirm-backdrop"></div>
+    <div class="modal-panel relative w-full max-w-sm rounded-3xl glass p-6 text-center shadow-2xl border border-red-500/20">
+      <div class="delete-confirm-icon w-14 h-14 mx-auto mb-4 rounded-full bg-red-500/15 border-2 border-red-500/30 flex items-center justify-center text-red-400">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+      </div>
+      <div class="delete-confirm-title font-display text-xl font-semibold mb-2">Delete Star?</div>
+      <div id="delete-confirm-message" class="delete-confirm-message text-white/50 text-sm mb-4">Are you sure you want to permanently remove this star from the galaxy?</div>
+      <div id="delete-confirm-preview" class="delete-confirm-preview rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-white/70 text-sm italic mb-6 break-words max-h-20 overflow-y-auto">—</div>
+      <div class="delete-confirm-actions flex gap-3">
+        <button id="delete-confirm-cancel" class="delete-confirm-cancel-btn flex-1 py-3 rounded-xl bg-white/10 border border-white/10 text-white/80 hover:bg-white/15 text-sm font-medium transition">Cancel</button>
+        <button id="delete-confirm-delete" class="delete-confirm-delete-btn flex-1 py-3 rounded-xl bg-red-500/25 border border-red-500/40 text-red-300 hover:bg-red-500/40 hover:text-white text-sm font-medium transition">Delete Forever</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       PROFILE PANEL
+       ========================================================= -->
+  <div id="profile-panel" class="modal-shell fixed inset-0 z-[250] flex items-center justify-center p-4 sm:p-6">
+    <div class="backdrop absolute inset-0 bg-black/60 backdrop-blur-sm" id="profile-backdrop"></div>
+    <div class="modal-panel relative w-full max-w-md max-h-[90vh] flex flex-col rounded-3xl glass shadow-2xl shadow-cosmos-500/20 border border-white/10 overflow-hidden">
+      <div class="profile-header flex items-center gap-3 p-5 border-b border-white/5">
+        <div class="w-9 h-9 rounded-xl bg-cosmos-500/20 border border-cosmos-500/40 flex items-center justify-center">
+          <svg class="w-4 h-4 text-cosmos-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <h2 class="font-display text-base font-semibold flex-1">My Profile</h2>
+        <button id="profile-close-btn" class="profile-close-btn w-7 h-7 rounded-full glass-light text-white/50 hover:text-white flex items-center justify-center transition">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="profile-body flex-1 overflow-y-auto p-5 space-y-5">
+
+        <div class="profile-avatar-section flex flex-col items-center gap-3 py-2">
+          <div id="profile-avatar-wrapper" class="profile-avatar-wrapper relative w-24 h-24 rounded-full overflow-hidden cursor-pointer border-[3px] border-cosmos-500/40 hover:border-cosmos-400 shadow-[0_0_20px_rgba(123,77,255,0.15)] hover:shadow-[0_0_30px_rgba(123,77,255,0.3)] transition-all duration-300 group">
+            <div id="profile-avatar-preview" class="profile-avatar-preview w-full h-full bg-white/5 flex items-center justify-center">
+              <svg class="w-8 h-8 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </div>
+            <div id="profile-avatar-overlay" class="profile-avatar-overlay absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span class="text-[10px] text-white font-medium text-center leading-tight">Change<br/>Photo</span>
+            </div>
+            <input type="file" id="profile-avatar-input" accept="image/*" class="hidden" />
+          </div>
+          <div class="profile-avatar-hint text-[10px] text-white/30 text-center">Click to upload. Max 1MB. Will be compressed.</div>
+        </div>
+
+        <div class="profile-field space-y-1.5">
+          <label class="profile-label text-[10px] text-white/50 font-medium tracking-[0.15em] uppercase">Display Name</label>
+          <input id="profile-name-input" type="text" placeholder="Your display name" maxlength="50"
+                 class="profile-input w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-cosmos-400/60 focus:bg-white/10 transition" />
+        </div>
+
+        <div class="profile-field space-y-1.5">
+          <label class="profile-label text-[10px] text-white/50 font-medium tracking-[0.15em] uppercase">Bio</label>
+          <textarea id="profile-bio-input" placeholder="Tell the galaxy about yourself..." maxlength="200" rows="3"
+                    class="profile-textarea w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm resize-y min-h-[60px] focus:outline-none focus:border-cosmos-400/60 focus:bg-white/10 transition"></textarea>
+        </div>
+
+        <div class="profile-gallery-section border-t border-white/5 pt-4 space-y-3">
+          <div class="profile-gallery-header flex items-center gap-3">
+            <h3 class="text-sm font-medium text-white/80 flex-1 flex items-center gap-2">
+              <svg class="w-4 h-4 text-cosmos-300/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+              My Gallery
+            </h3>
+            <button id="profile-gallery-add-btn" class="profile-gallery-add-btn text-xs px-3 py-1.5 rounded-lg bg-cosmos-500/20 border border-cosmos-500/40 text-white/85 hover:bg-cosmos-500/40 transition whitespace-nowrap flex items-center gap-1.5">
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Add Image
+            </button>
+            <input type="file" id="profile-gallery-input" accept="image/*" class="hidden" />
+          </div>
+          <div id="profile-gallery-grid" class="profile-gallery-grid grid grid-cols-3 gap-2">
+            <div class="profile-gallery-empty col-span-3 text-center text-white/25 text-xs py-6 italic">No images yet. Click "+ Add Image" to upload.</div>
+          </div>
+        </div>
+
+        <button id="profile-save-btn" class="profile-save-btn w-full py-3.5 rounded-xl bg-gradient-to-r from-cosmos-500 to-nebula-violet hover:from-cosmos-400 hover:to-nebula-pink text-white font-semibold text-sm transition-all duration-300 hover:shadow-lg hover:shadow-cosmos-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Save Profile
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       PROFILE VIEW MODAL
+       ========================================================= -->
+  <div id="profile-view-modal" class="modal-shell fixed inset-0 z-[260] flex items-center justify-center p-4">
+    <div class="backdrop absolute inset-0 bg-black/70 backdrop-blur-sm" id="profile-view-backdrop"></div>
+    <div class="modal-panel relative w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl glass shadow-2xl shadow-cosmos-500/20 border border-white/10 overflow-hidden">
+      <div class="profile-view-header flex justify-end p-3">
+        <button id="profile-view-close-btn" class="profile-view-close-btn w-7 h-7 rounded-full glass-light text-white/50 hover:text-white flex items-center justify-center transition">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="profile-view-body flex-1 overflow-y-auto px-6 pb-4 text-center">
+        <div id="profile-view-avatar" class="profile-view-avatar w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-2 border-cosmos-500/40 flex items-center justify-center bg-white/5">
+          <svg class="w-8 h-8 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <div id="profile-view-name" class="profile-view-name font-display text-xl font-semibold text-white/95 mb-1">Anonymous</div>
+        <div id="profile-view-bio" class="profile-view-bio text-white/50 text-sm mb-2 max-w-[90%] mx-auto leading-relaxed">No bio yet.</div>
+        <div id="profile-view-stars-count" class="profile-view-stars-count text-[10px] text-white/35 tracking-widest uppercase mb-4">✦ 0 stars</div>
+        <div class="profile-view-divider h-px bg-white/10 my-3"></div>
+        <div id="profile-view-gallery" class="profile-view-gallery text-left">
+          <h3 class="text-sm font-medium text-white/70 mb-3 flex items-center gap-2">
+            <svg class="w-4 h-4 text-cosmos-300/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+            Gallery
+          </h3>
+          <div id="profile-view-gallery-grid" class="profile-view-gallery-grid grid grid-cols-3 gap-2">
+            <div class="profile-gallery-empty col-span-3 text-center text-white/25 text-xs py-4 italic">No gallery images.</div>
+          </div>
+        </div>
+      </div>
+      <div class="profile-view-actions px-6 pb-5 pt-2 flex justify-center">
+        <button id="profile-view-pm-btn" class="profile-view-pm-btn px-6 py-3 rounded-xl bg-cosmos-500/20 border border-cosmos-500/40 text-white/85 hover:bg-cosmos-500/40 hover:text-white transition-all duration-300 text-sm font-medium flex items-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Send Message
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       FULLSCREEN IMAGE VIEWER
+       ========================================================= -->
+  <div id="image-viewer" class="modal-shell fixed inset-0 z-[270] flex items-center justify-center p-4">
+    <div class="backdrop absolute inset-0 bg-black/90 backdrop-blur-md" id="image-viewer-backdrop"></div>
+    <div class="image-viewer-card relative max-w-4xl w-full max-h-[90vh] flex items-center justify-center">
+      <button id="image-viewer-close-btn" class="image-viewer-close-btn fixed top-4 right-4 w-10 h-10 rounded-full bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:scale-110 flex items-center justify-center transition-all z-10">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
       </button>
-    </form>
-
-    <p class="landing-footer">Your emotions become stars in an ever-growing galaxy</p>
-
-    <!-- ====== SUPPORT DEVELOPER SECTION ====== -->
-    <div class="support-section" id="support-section">
-      <a href="support-dev.html" class="support-toggle" id="support-toggle">
-        <span class="heart">❤️</span>
-        <span>Support the Developer</span>
-        <span class="arrow">▾</span>
-      </a>
+      <img id="image-viewer-img" src="" alt="Full size image"
+           class="image-viewer-img max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl" />
     </div>
   </div>
 
-  <!-- ====== GALAXY VIEW (Three.js canvas injected here) ====== -->
-  <div id="galaxy-view"></div>
+  <!-- =========================================================
+       CHAT PANEL
+       ========================================================= -->
+  <div id="chat-panel" class="modal-shell fixed inset-0 z-[250] flex items-center justify-center p-4 sm:p-6">
+    <div class="backdrop absolute inset-0 bg-black/60 backdrop-blur-sm" id="chat-backdrop"></div>
+    <div class="modal-panel relative w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl glass shadow-2xl shadow-cosmos-500/20 border border-white/10 overflow-hidden">
 
-  <!-- ====== HUD OVERLAY - UPDATED WITH MODERN SVG ICONS ====== -->
-  <div id="hud" style="display:none;">
-    <button class="hud-btn" id="btn-back">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M19 12H5M12 19l-7-7 7-7"/>
-      </svg>
-      <span>Back</span>
-    </button>
-    
-    <button class="hud-btn" id="btn-sound">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M11 5L6 9H2v6h4l5 4V5z"/>
-        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
-      </svg>
-      <span class="btn-text" id="sound-text">Sound</span>
-    </button>
-    
-    <button class="hud-btn" id="btn-explore">🎲 Explore</button>
-    
-    <button class="hud-btn" id="btn-mystars">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-      </svg>
-      <span>Manage</span>
-    </button>
-
-    <button class="hud-btn" id="btn-profile">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-        <circle cx="12" cy="7" r="4"/>
-      </svg>
-      <span>Profile</span>
-    </button>
-    
-    <button class="hud-btn" id="btn-chat">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-      <span>Chat</span>
-      <span class="chat-badge" id="chat-badge" style="display:none;">0</span>
-    </button>
-    
-    <button class="hud-btn" id="btn-refresh">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M23 4v6h-6"/>
-        <path d="M1 20v-6h6"/>
-        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-      </svg>
-      <span>Refresh</span>
-    </button>
-
-    <div class="filter-pills" id="filter-pills"></div>
-
-    <span class="hud-counter" id="star-counter">✦ 0 stars</span>
-  </div>
-
-  <!-- ====== STAR MODAL ====== -->
-  <div id="star-modal">
-    <div class="backdrop" id="modal-backdrop"></div>
-    <div class="modal-card">
-      <div class="modal-emotion-icon" id="modal-icon">✨</div>
-      <div class="modal-emotion-label" id="modal-label">General</div>
-      <div class="modal-message" id="modal-message">—</div>
-      <div class="modal-name" id="modal-name">Anonymous</div>
-      <div class="modal-time" id="modal-time">just now</div>
-      <div id="modal-comments">
-        <div class="comments-list" id="comments-list">
-          <div class="comment-empty">No messages yet. Be the first to leave a kind thought!</div>
+      <div class="chat-header flex items-center gap-3 p-5 border-b border-white/5">
+        <div class="w-9 h-9 rounded-xl bg-cosmos-500/20 border border-cosmos-500/40 flex items-center justify-center">
+          <svg class="w-4 h-4 text-cosmos-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
         </div>
-        <div class="typing-indicator" id="typing-indicator"></div>
-        <div class="comment-form">
-          <input class="comment-input" id="comment-input" type="text" placeholder="Leave a message..." autocomplete="off" />
-          <button class="comment-send-btn" id="comment-send-btn">Send</button>
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button class="modal-like-btn" id="modal-like-btn">
-          💡 <span id="modal-like-count">0</span> Send Light
+        <h2 class="font-display text-base font-semibold flex-1">Messages</h2>
+        <button id="chat-close-btn" class="chat-close-btn w-7 h-7 rounded-full glass-light text-white/50 hover:text-white flex items-center justify-center transition">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
         </button>
-        <button class="modal-view-profile-btn" id="modal-view-profile-btn" style="display:none;">
-          👤 View Profile
-        </button>
-        <button class="modal-pm-btn" id="modal-pm-btn">
-          💬 Private Message
-        </button>
-        <button class="modal-close-btn" id="modal-close-btn">✕</button>
       </div>
-    </div>
-  </div>
 
-  <!-- ====== MY STARS MANAGEMENT PANEL ====== -->
-  <div id="mystars-panel">
-    <div class="backdrop" id="mystars-backdrop"></div>
-    <div class="mystars-card">
-      <div class="mystars-header">
-        <h2>⭐ My Stars</h2>
-        <span class="mystars-count" id="mystars-count">0 stars</span>
-        <button class="mystars-close-btn" id="mystars-close-btn">✕</button>
-      </div>
-      <div class="mystars-list" id="mystars-list">
-        <div class="mystars-empty">You haven't created any stars yet. Share your emotion to create your first star!</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====== TOAST ====== -->
-  <div id="toast"></div>
-
-  <!-- ====== DELETE CONFIRM MODAL (replaces native confirm()) ====== -->
-  <div id="delete-confirm-modal">
-    <div class="backdrop" id="delete-confirm-backdrop"></div>
-    <div class="delete-confirm-card">
-      <div class="delete-confirm-icon">✕</div>
-      <div class="delete-confirm-title">Delete Star?</div>
-      <div class="delete-confirm-message" id="delete-confirm-message">Are you sure you want to permanently remove this star from the galaxy?</div>
-      <div class="delete-confirm-preview" id="delete-confirm-preview">—</div>
-      <div class="delete-confirm-actions">
-        <button class="delete-confirm-cancel-btn" id="delete-confirm-cancel">Cancel</button>
-        <button class="delete-confirm-delete-btn" id="delete-confirm-delete">✕ Delete Forever</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====== PROFILE PANEL ====== -->
-  <div id="profile-panel">
-    <div class="backdrop" id="profile-backdrop"></div>
-    <div class="profile-card">
-      <div class="profile-header">
-        <h2>👤 My Profile</h2>
-        <button class="profile-close-btn" id="profile-close-btn">✕</button>
-      </div>
-      <div class="profile-body">
-        <!-- Avatar upload area -->
-        <div class="profile-avatar-section">
-          <div class="profile-avatar-wrapper" id="profile-avatar-wrapper">
-            <div class="profile-avatar-preview" id="profile-avatar-preview">
-              <div class="profile-avatar-placeholder">📷</div>
-            </div>
-            <div class="profile-avatar-overlay" id="profile-avatar-overlay">
-              <span>Change Photo</span>
-            </div>
-            <input type="file" id="profile-avatar-input" accept="image/*" style="display:none;" />
-          </div>
-          <div class="profile-avatar-hint">Click to upload. Max 1MB. Will be compressed.</div>
-        </div>
-
-        <!-- Display name -->
-        <div class="profile-field">
-          <label class="profile-label">Display Name</label>
-          <input class="profile-input" id="profile-name-input" type="text" placeholder="Your display name" maxlength="50" />
-        </div>
-
-        <!-- Bio -->
-        <div class="profile-field">
-          <label class="profile-label">Bio</label>
-          <textarea class="profile-textarea" id="profile-bio-input" placeholder="Tell the galaxy about yourself..." maxlength="200" rows="3"></textarea>
-        </div>
-
-        <!-- Gallery section -->
-        <div class="profile-gallery-section">
-          <div class="profile-gallery-header">
-            <h3>🖼️ My Gallery</h3>
-            <button class="profile-gallery-add-btn" id="profile-gallery-add-btn">+ Add Image</button>
-            <input type="file" id="profile-gallery-input" accept="image/*" style="display:none;" />
-          </div>
-          <div class="profile-gallery-grid" id="profile-gallery-grid">
-            <div class="profile-gallery-empty">No images yet. Click "+ Add Image" to upload.</div>
-          </div>
-        </div>
-
-        <!-- Save button -->
-        <button class="profile-save-btn" id="profile-save-btn">💾 Save Profile</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====== PROFILE VIEW MODAL ====== -->
-  <div id="profile-view-modal">
-    <div class="backdrop" id="profile-view-backdrop"></div>
-    <div class="profile-view-card">
-      <div class="profile-view-header">
-        <button class="profile-view-close-btn" id="profile-view-close-btn">✕</button>
-      </div>
-      <div class="profile-view-body">
-        <div class="profile-view-avatar" id="profile-view-avatar">
-          <div class="profile-view-avatar-placeholder">👤</div>
-        </div>
-        <div class="profile-view-name" id="profile-view-name">Anonymous</div>
-        <div class="profile-view-bio" id="profile-view-bio">No bio yet.</div>
-        <div class="profile-view-stars-count" id="profile-view-stars-count">✦ 0 stars</div>
-        <div class="profile-view-divider"></div>
-        <div class="profile-view-gallery" id="profile-view-gallery">
-          <h3>🖼️ Gallery</h3>
-          <div class="profile-view-gallery-grid" id="profile-view-gallery-grid">
-            <div class="profile-gallery-empty">No gallery images.</div>
-          </div>
-        </div>
-      </div>
-      <div class="profile-view-actions">
-        <button class="profile-view-pm-btn" id="profile-view-pm-btn">💬 Send Message</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====== FULLSCREEN IMAGE VIEWER ====== -->
-  <div id="image-viewer">
-    <div class="backdrop" id="image-viewer-backdrop"></div>
-    <div class="image-viewer-card">
-      <button class="image-viewer-close-btn" id="image-viewer-close-btn">✕</button>
-      <img class="image-viewer-img" id="image-viewer-img" src="" alt="Full size image" />
-    </div>
-  </div>
-
-  <!-- ====== CHAT PANEL ====== -->
-  <div id="chat-panel">
-    <div class="backdrop" id="chat-backdrop"></div>
-    <div class="chat-card">
-      <div class="chat-header">
-        <h2>💬 Messages</h2>
-        <button class="chat-close-btn" id="chat-close-btn">✕</button>
-      </div>
-      
-      <!-- Conversation list view -->
-      <div class="chat-conversations" id="chat-conversations">
-        <div class="chat-conversations-list" id="chat-conversations-list">
-          <div class="chat-convs-empty">No conversations yet. Click "Private Message" on a star to start chatting!</div>
+      <div id="chat-conversations" class="chat-conversations flex-1 overflow-y-auto p-4">
+        <div id="chat-conversations-list" class="chat-conversations-list space-y-2">
+          <div class="chat-convs-empty text-center text-white/25 text-sm py-10 italic leading-relaxed">No conversations yet. Click "Private Message" on a star to start chatting!</div>
         </div>
       </div>
 
-      <!-- Conversation detail view -->
-      <div class="chat-detail" id="chat-detail" style="display:none;">
-        <div class="chat-detail-header">
-          <button class="chat-back-btn" id="chat-back-btn">← Back</button>
-          <span class="chat-detail-name" id="chat-detail-name">User</span>
+      <div id="chat-detail" class="chat-detail flex-1 flex flex-col min-h-0" style="display:none;">
+        <div class="chat-detail-header flex items-center gap-3 px-4 py-3 border-b border-white/5">
+          <button id="chat-back-btn" class="chat-back-btn text-cosmos-400/80 hover:text-cosmos-300 hover:bg-cosmos-500/15 text-sm px-2 py-1 rounded-lg transition flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+            </svg>
+            Back
+          </button>
+          <span id="chat-detail-name" class="chat-detail-name text-sm text-white/85 font-medium">User</span>
         </div>
-        <div class="chat-messages" id="chat-messages">
-          <div class="chat-messages-empty">Send a message to start the conversation!</div>
+        <div id="chat-messages" class="chat-messages flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2 min-h-[200px]">
+          <div class="chat-messages-empty text-center text-white/25 text-sm py-10 italic">Send a message to start the conversation!</div>
         </div>
-        <div class="chat-input-area">
-          <input class="chat-input" id="chat-input" type="text" placeholder="Type a private message..." autocomplete="off" />
-          <button class="chat-send-btn" id="chat-send-btn">Send</button>
+        <div class="chat-input-area flex gap-2 px-4 py-3 border-t border-white/5">
+          <input id="chat-input" type="text" placeholder="Type a private message..." autocomplete="off"
+                 class="chat-input flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 text-sm focus:outline-none focus:border-cosmos-400/60 transition" />
+          <button id="chat-send-btn" class="chat-send-btn px-4 py-2.5 rounded-xl bg-gradient-to-r from-cosmos-500 to-nebula-violet hover:from-cosmos-400 hover:to-nebula-pink text-white text-sm font-medium transition-all hover:shadow-lg hover:shadow-cosmos-500/30 whitespace-nowrap flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+            Send
+          </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ==============================
-       THREE.JS IMPORT MAP
-       ============================== -->
+  <!-- =========================================================
+       THREE.JS IMPORT MAP + APP
+       ========================================================= -->
   <script type="importmap">
     {
       "imports": {
@@ -327,9 +708,6 @@
     }
   </script>
 
-  <!-- ==============================
-       APPLICATION CODE
-       ============================== -->
-<script type="module" src="js/script.js"></script>
+  <script type="module" src="js/script.js"></script>
 </body>
 </html>
