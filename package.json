@@ -7,7 +7,7 @@
     "dev": "tailwindcss -i ./css/tailwind.css -o ./css/style.css --watch",
     "build": "tailwindcss -i ./css/tailwind.css -o ./css/style.css --minify"
   },
-  "devDependencies": {
+  "dependencies": {
     "tailwindcss": "^3.4.0"
   }
 }
