@@ -1,0 +1,341 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =================================================================
+   SoulVerse · custom CSS
+   Everything Tailwind can't express as utilities.
+   ================================================================= */
+
+/* ---------- RESET & BASE ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  background: #000;
+  color: #fff;
+  cursor: default;
+}
+
+body { font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; }
+.font-display, h1, h2, h3 { font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; }
+
+a { color: inherit; text-decoration: none; }
+
+/* ---------- GLOBAL SCROLLBARS ---------- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- STARFIELD ---------- */
+.starfield {
+  background-image:
+    radial-gradient(2px 2px at 20px 30px, #fff, transparent),
+    radial-gradient(2px 2px at 40px 70px, #fff, transparent),
+    radial-gradient(1px 1px at 90px 40px, #fff, transparent),
+    radial-gradient(1px 1px at 130px 80px, #fff, transparent),
+    radial-gradient(2px 2px at 160px 30px, #fff, transparent);
+  background-size: 200px 100px;
+  background-repeat: repeat;
+}
+
+/* ---------- GLASS EFFECTS ---------- */
+.glass {
+  background: rgba(20, 10, 40, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glow-border {
+  box-shadow:
+    0 0 20px rgba(123, 77, 255, 0.3),
+    inset 0 0 20px rgba(123, 77, 255, 0.05);
+}
+
+/* ---------- LANDING TITLE GRADIENT ---------- */
+.landing-title-gradient {
+  background: linear-gradient(135deg, #f0e6ff, #c4a0ff, #7c3aed, #c4a0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ---------- NATIVE SELECT ARROW ---------- */
+select.emotion-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+select.emotion-select option {
+  background: #1a0a2e;
+  color: #fff;
+}
+
+/* ---------- MODAL SHELL ---------- */
+.modal-shell {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.modal-shell.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal-shell .modal-panel {
+  transform: scale(0.94) translateY(20px);
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.modal-shell.visible .modal-panel {
+  transform: scale(1) translateY(0);
+}
+
+/* ---------- HUD ---------- */
+#hud {
+  background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%);
+}
+
+.hud-btn.active {
+  background: rgba(123, 77, 255, 0.3);
+  border-color: rgba(123, 77, 255, 0.5);
+  color: #fff;
+}
+.hud-btn.active svg { stroke: #a855f7; }
+
+/* ---------- FILTER PILLS ---------- */
+.filter-pill.active {
+  background: rgba(123, 77, 255, 0.35) !important;
+  border-color: rgba(123, 77, 255, 0.6) !important;
+  color: #fff !important;
+}
+
+/* ---------- TOAST ---------- */
+#toast {
+  transform: translateX(-50%) translateY(80px);
+  opacity: 0;
+  transition: all 0.5s ease;
+  pointer-events: none;
+}
+#toast.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+/* =================================================================
+   ANIMATIONS
+   ================================================================= */
+
+@keyframes loadingPulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; filter: brightness(0.5); }
+  50%      { transform: scale(1.3); opacity: 1; filter: brightness(1.5); }
+}
+.loading-star { animation: loadingPulse 1.5s ease-in-out infinite; }
+
+@keyframes heartBeat {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.15); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.1); }
+  70% { transform: scale(1); }
+}
+.heart, .animate-heart-beat { animation: heartBeat 1.5s ease-in-out infinite; }
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.1); }
+}
+.chat-badge { animation: badgePulse 2s ease-in-out infinite; }
+
+@keyframes commentSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.comment-item { animation: commentSlideIn 0.3s ease-out; }
+
+@keyframes chatMsgSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.chat-msg { animation: chatMsgSlideIn 0.25s ease-out; }
+
+@keyframes deleteIconPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,50,50,0.2); }
+  50%      { transform: scale(1.08); box-shadow: 0 0 20px 6px rgba(255,50,50,0.15); }
+}
+.delete-confirm-icon { animation: deleteIconPulse 1.5s ease-in-out infinite; }
+
+@keyframes typingDot {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
+}
+.typing-indicator .typing-dots::after {
+  content: '';
+  animation: typingDot 1.2s steps(4, end) infinite;
+}
+.typing-indicator {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.typing-indicator.visible { opacity: 1; }
+
+/* =================================================================
+   JS-driven component states
+   ================================================================= */
+
+#landing-screen.hidden {
+  opacity: 0;
+  transform: scale(1.1);
+  pointer-events: none;
+}
+#loading-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modal-like-btn.liked {
+  background: rgba(255,105,180,0.3);
+  border-color: #ff69b4;
+}
+
+.mystar-item.editing {
+  background: rgba(123, 77, 255, 0.1);
+  border-color: rgba(123, 77, 255, 0.3);
+}
+
+.chat-conv-item.unread {
+  border-color: rgba(123, 77, 255, 0.3);
+  background: rgba(123, 77, 255, 0.08);
+}
+
+.chat-msg.editing .chat-msg-bubble { display: none; }
+.chat-msg-edit-form { display: none; flex-direction: column; gap: 0.3rem; min-width: 200px; }
+.chat-msg.editing .chat-msg-edit-form { display: flex; }
+
+.chat-msg.deleted .chat-msg-bubble {
+  font-style: italic;
+  color: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.03);
+  font-size: 0.7rem;
+}
+
+.chat-msg-actions { opacity: 0; transition: opacity 0.2s ease; }
+.chat-msg.sent:hover .chat-msg-actions { opacity: 1; }
+
+.comment-delete-btn { opacity: 0; transition: all 0.2s ease; }
+.comment-item:hover .comment-delete-btn { opacity: 1; }
+
+.profile-avatar-overlay { opacity: 0; transition: opacity 0.3s ease; }
+.profile-avatar-wrapper:hover .profile-avatar-overlay { opacity: 1; }
+
+.profile-gallery-item-delete { opacity: 0; transition: opacity 0.3s ease; }
+.profile-gallery-item:hover .profile-gallery-item-delete { opacity: 1; }
+
+/* =================================================================
+   Component-specific rules
+   ================================================================= */
+
+.comment-item .comment-bubble { border-bottom-left-radius: 4px; }
+.comment-item.is-mine .comment-bubble {
+  background: rgba(245,158,11,0.08);
+  border-color: rgba(245,158,11,0.15);
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 4px;
+}
+.comment-item .comment-avatar {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  box-shadow: 0 2px 8px rgba(124,58,237,0.3);
+}
+.comment-item.is-mine .comment-avatar {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  box-shadow: 0 2px 8px rgba(245,158,11,0.3);
+}
+
+.chat-msg.sent { align-self: flex-end; align-items: flex-end; }
+.chat-msg.received { align-self: flex-start; align-items: flex-start; }
+.chat-msg.sent .chat-msg-bubble {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-msg.received .chat-msg-bubble {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.85);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-conv-avatar { background: linear-gradient(135deg, #7c3aed, #a855f7); }
+.chat-conv-unread-badge { background: linear-gradient(135deg, #7c3aed, #a855f7); }
+
+.profile-gallery-grid img,
+.profile-view-gallery-grid img,
+.profile-gallery-item img,
+.profile-view-gallery-item img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.1);
+  transition: border-color 0.3s ease, transform 0.3s ease;
+}
+.profile-gallery-grid img:hover,
+.profile-view-gallery-grid img:hover,
+.profile-gallery-item:hover,
+.profile-view-gallery-item:hover { border-color: rgba(123,77,255,0.5); }
+
+.profile-view-avatar img,
+.profile-avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+
+.profile-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Prevent JS-injected SVGs from stretching */
+.profile-avatar-remove-btn svg,
+.mystar-edit-btn svg,
+.mystar-delete-btn svg,
+.chat-msg-action-btn svg,
+.comment-delete-btn svg,
+.profile-gallery-item-delete svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* =================================================================
+   Responsive
+   ================================================================= */
+@media (max-width: 480px) {
+  .hud-btn svg { width: 14px; height: 14px; }
+  .hud-btn span:not(.chat-badge) { display: none; }
+  #btn-mystars span { display: inline; }
+  #btn-mystars {
+    background: rgba(123,77,255,0.25);
+    border-color: rgba(123,77,255,0.4);
+  }
+  .loading-star { font-size: 2.5rem; }
+  .loading-text { font-size: 0.85rem; letter-spacing: 0.15em; max-width: 90%; margin-left: auto; margin-right: auto; }
+  .profile-gallery-grid,
+  .profile-view-gallery-grid { grid-template-columns: repeat(2, 1fr); }
+}
